@@ -15,7 +15,7 @@ A right-click menu for the Spaces list in the [Herdr](https://herdr.dev) desktop
 
 Ask your Herdr agent:
 
-> Read ~/.config/herdr-app/AGENTS.md, then add this mod: https://github.com/cris-achiardi/herdr-space-menu
+> Read ~/.config/herdr-app/AGENTS.md, then add this mod: https://github.com/cris-achiardi/herdr-mods/tree/main/space-menu
 
 It follows [RECIPE.md](RECIPE.md). Installation has two parts, and the second is the one that matters:
 
@@ -53,4 +53,4 @@ No network access. It reads no files and writes nothing outside Herdr's own stat
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The per-space items and the menu's look follow Herdr's shipped `menu` mod; icons are referenced from Herdr's shipped `workspace-chrome` mod, not copied.
+MIT, see [LICENSE](../LICENSE). The per-space items and the menu's look follow Herdr's shipped `menu` mod; icons are referenced from Herdr's shipped `workspace-chrome` mod, not copied.
