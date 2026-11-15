@@ -1,6 +1,6 @@
 # Servers for Herdr
 
-A sidebar section for the [Herdr](https://herdr.dev) desktop app that lists the local servers running on your computer, under the space each belongs to, with buttons to restart each one, stop it and open it in the browser.
+A sidebar section for the [Herdr](https://herdr.dev) desktop app that lists the local servers running on your computer, under the space each belongs to, with buttons to restart each one, stop it, share it through a public link and open it in the browser.
 
 ![Servers](preview.png)
 
@@ -10,6 +10,7 @@ A sidebar section for the [Herdr](https://herdr.dev) desktop app that lists the 
 - **Grouped by space**: a server sits under the space whose terminal started it, or whose terminals are in its folder. The rest go under "Other". Click a space's row to fold its servers away.
 - **Restart**: stops the server and runs its command again in its folder, for when hot reload gives up. The new one runs in the background as a herdr-core terminal without a pane (`hc ls` shows it).
 - **Stop**: ends the server's process and the processes it started.
+- **Share**: gives the server a temporary public address (`https://<random words>.trycloudflare.com`) through a Cloudflare quick tunnel and copies it. The address shows under the server; click it to copy it again, or its ✕ to stop sharing. **Anyone who has the link can see the server until you stop sharing**; there is no password.
 - **Open in browser**: opens `http://localhost:<port>`.
 - Click a server to go to its space.
 
@@ -18,7 +19,9 @@ A sidebar section for the [Herdr](https://herdr.dev) desktop app that lists the 
 - Windows: `netstat`, `taskkill` and Windows PowerShell, all part of the system.
 - macOS and Linux: `lsof` (or `ss` on Linux), `ps` and `kill`.
 
-Nothing to install; it does not need Node.js.
+Nothing to install for the list; it does not need Node.js.
+
+Share needs [cloudflared](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/) (`winget install Cloudflare.cloudflared`, `brew install cloudflared`). No Cloudflare account is needed.
 
 ## Install
 
@@ -40,13 +43,20 @@ Every 5 seconds while the section is on screen:
 - `netstat -ano` on Windows, `lsof -nP -iTCP -sTCP:LISTEN -Fpn` elsewhere (`ss -ltnpH` without `lsof`), to list the listening ports;
 - only when a process it hasn't seen starts listening, the process list: `Get-CimInstance Win32_Process` through PowerShell on Windows, `ps -A -o pid=,ppid=,args=` elsewhere; and on macOS and Linux the new process's working folder (`lsof -a -d cwd -p <pid>`, `readlink /proc/<pid>/cwd`).
 
-When you click Stop: `taskkill /PID <pid> /T /F` on Windows, `kill <pid>` elsewhere. When you click Restart: the same, then `hc run --bg --rm --no-parent --cwd <folder> -- <the server's command>`. When you click Open, the system browser. It makes no network requests and writes no files.
+When you click Stop: `taskkill /PID <pid> /T /F` on Windows, `kill <pid>` elsewhere. When you click Restart: the same, then `hc run --bg --rm --no-parent --cwd <folder> -- <the server's command>`. When you click Open, the system browser.
+
+When you click Share: `cloudflared --version` to find the program, then `hc run --bg --rm --no-parent --name share-<port> -- cloudflared tunnel --url http://localhost:<port> --http-host-header localhost`, and `hc read` on that terminal to get its address. Stopping the share, or the server being gone for three reloads, runs `hc kill` on it. **While a server is shared, cloudflared keeps a connection to Cloudflare and the server is reachable from the internet.**
+
+The mod itself makes no network requests and writes no files.
 
 ## Limits
 
 - **Stop is immediate and forced on Windows.** There is no confirmation, and the server gets no chance to clean up.
 - **Restart runs the server's own command, not the script that launched it.** `npm run dev` comes back as `node …/astro.js dev`: same arguments and folder, but environment variables set by the launching script or typed before the command (`PORT=4400 pnpm dev`) are lost, and a server that was running in a terminal comes back in the background, not in that terminal.
 - Restart is offered only when the server's folder is known. On macOS and Linux arguments containing spaces are not rebuilt correctly.
+- A shared address is new every time, and stays up after Herdr closes: the tunnel runs in herdr-core. It ends when you stop sharing, stop the server from this list, or about 15 seconds after the server goes away while the section is on screen.
+- Quick tunnels are Cloudflare's testing service: no uptime promise, a cap on simultaneous requests, and no Server-Sent Events. The visitor's hot reload through the link is untested.
+- The tunnel tells the server the request is for `localhost`, so servers that refuse unknown hosts (Vite, Astro) answer. A server that builds absolute links from the host name will hand visitors `localhost` links.
 - A server restarted by a watcher or a process manager (nodemon, pm2, a Windows service) comes back after Stop.
 - Processes whose command line contains `mcp` are left out: agents' MCP servers listen on ports too. A project of yours with `mcp` in its path is hidden with them.
 - Databases and other services not started from a Herdr terminal (PostgreSQL as a service, Docker's proxy) are not listed.

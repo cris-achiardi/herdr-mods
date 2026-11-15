@@ -108,7 +108,7 @@ export async function scan(exec, platform, cache) {
         seen.add(up); ancestors.push(up); names.push(bare(table.get(up).name));
       }
       const proc = bare(p.name), herdr = names.some((n) => n === "herdr-core" || n === "hc");
-      const show = (herdr || RUNTIMES.test(proc)) && !HIDDEN.test(p.cmd) && !/^herdr/.test(proc);
+      const show = (herdr || RUNTIMES.test(proc)) && !HIDDEN.test(p.cmd) && !/^(herdr|cloudflared)/.test(proc);
       if (!show) { cache.set(pid, { show: false }); continue; }
       const dir = await folder(exec, platform, pid, p.cmd);
       const what = tool(p.cmd, proc);
