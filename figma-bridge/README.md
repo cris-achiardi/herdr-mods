@@ -8,7 +8,7 @@ A sidebar section for the [Herdr](https://herdr.dev) desktop app that shows whic
 
 - **A bridge light** in the section's heading: green with a file connected, yellow with a bridge running but no file, grey with no bridge.
 - **The connected Figma files**, each with a button that opens it in the browser.
-- **The agent on each file**: the Herdr agent whose session last called Figma on that file. While it is calling Figma it shows the tool it is running and a spinner; afterwards, how long ago. Click it to go to that agent's terminal.
+- **The agent on each file**: the Herdr agent whose session last called Figma on that file. While it is calling Figma it shows the tool it is running and a spinner; afterwards, how long ago. Click it to go to that agent's terminal. Click a file to fold its agents away; folded, it shows how many there are and still spins while one is at work.
 
 It is read-only. It never talks to Figma and never sends anything to the bridge except a health request.
 

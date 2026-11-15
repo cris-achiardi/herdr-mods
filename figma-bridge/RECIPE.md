@@ -10,9 +10,9 @@ A section that fills its block: `chrome` background, 1px `border` above, text 13
 
 **Heading**, 41px (14px top, 5px bottom, 16px side padding): "Figma" in 11.5px medium `dim`, and at the right a 7px dot, the light: `ansi2` when at least one file is connected, `ansi3` when a bridge answers but no file is connected, `dim` when no bridge answers, `ansi1` on an error. Its tooltip says which.
 
-**File row**, 30px, 8px side padding, radius 8, `hover` on hover: a 14px Figma icon in `muted`; the file name, truncated (tooltip: name and current page); a 22px button with a 13px external-link icon in `dim` (`selected` background and `foreground` on hover), tooltip "Open in browser".
+**File row**, 30px, 8px side padding, 6px gaps, radius 8, `hover` on hover: a 12px chevron in `dim`, down when open and right when folded (a 12px blank for a file with no agent); a 14px Figma icon in `muted`; the file name, truncated (tooltip: name and current page); when folded, the number of its agents in a 10px `muted` badge with a 1px `border`, and at the right a 12px `working` spinner if one of them is active; a 22px button with a 13px external-link icon in `dim` (`selected` background and `foreground` on hover), tooltip "Open in browser".
 
-**Agent row**, under its file, 26px, 31px left and 8px right padding, radius 8, 12px text: the agent's program icon (13px), its space name (at most 110px), its tab name in 11px `dim` taking the rest, then:
+**Agent row**, under its open file, 26px, 26px left and 8px right padding, radius 8, 12px text: the agent's program icon (13px), its space name (at most 110px), its tab name in 11px `dim` taking the rest, then:
 
 - while active: the tool it last ran without its `figma_` prefix and with spaces ("execute", "get status") in 11px `dim`, and a 12px spinner in `working` turning once per 900 ms; the row's text is `foreground`;
 - otherwise: the time since its last Figma call (`now`, `5m`, `3h`, `2d`) in 11px `dim`; the row's text is `muted`.
@@ -27,6 +27,7 @@ The row of the focused agent is `selected`. A session that is not in a Herdr ter
 
 - An agent is active while one of its figma-console calls has no answer yet, and for 45 s after its last call or answer.
 - A file lists the sessions whose most recent figma-console call targeted it: the call's `fileKey` or Figma URL, else the bridge's active file as last reported to that session.
+- Clicking a file row that has agents folds or unfolds them. Folded files are kept in `localStorage` by file key.
 - Clicking an agent row focuses that agent's pane. Clicking a file's button opens `https://www.figma.com/file/<key>` in the system browser.
 - It reloads every 3 s while its layout block is shown; a hidden block runs nothing.
 - The block resizes itself to its content with `layout.resize`, up to 300px, then scrolls.
@@ -34,8 +35,8 @@ The row of the focused agent is `selected`. A session that is not in a Herdr ter
 
 ## Built from
 
-- `mods/figma-bridge/`: `main.js`, `probe.cjs`, `mod.json` `{ "place": "none" }`, icons `figma`, `external`, `spinner` (drawn after Lucide) and `LICENSE-lucide.txt`.
-- `main.js`: one `View`. `herdr` functions: `agents`, `panes`, `terminals`, `exec`, `theme`, `layout`, `props`, `appHome`, `run`. Commands: `pane.focus {pane}`, `layout.resize {id, px}`. `cx.open_url`, `cx.timer.every`. It runs `node <appHome>/mods/figma-bridge/probe.cjs` (20 s timeout) and draws its JSON. `props { demo: true }` draws two sample files at 268px wide and runs nothing.
+- `mods/figma-bridge/`: `main.js`, `probe.cjs`, `mod.json` `{ "place": "none" }`, icons `figma`, `external`, `spinner`, `chevron-down`, `chevron-right` (drawn after Lucide) and `LICENSE-lucide.txt`.
+- `main.js`: one `View`. `herdr` functions: `agents`, `panes`, `terminals`, `exec`, `theme`, `layout`, `props`, `appHome`, `run`. Commands: `pane.focus {pane}`, `layout.resize {id, px}`. `cx.open_url`, `cx.timer.every`. It runs `node <appHome>/mods/figma-bridge/probe.cjs` (20 s timeout) and draws its JSON. `props { demo: true }` draws two sample files at 268px wide and runs nothing; `folded: ["b"]` starts the second one folded.
 - `probe.cjs` (CommonJS, Node 18+, no dependencies) prints `{ now, connected, unnamed, files: [{ key, name, page, url, agents: [{ session, name, cwd, ancestors, tool, at, calling }] }], bridges: [{ port, up, version, connected, session, ancestors }] }`:
   1. Bridges: every `figma-console-mcp-<port>.json` in `os.tmpdir()` whose `pid` is alive; `GET http://localhost:<port>/health` (1.5 s) gives `connectedClients`. `connected` is the largest of them: the plugin connects each file to every bridge.
   2. Ancestors of each bridge's pid from the process table (`Get-CimInstance Win32_Process` through PowerShell on Windows, `ps -A -o pid=,ppid=` elsewhere), cached per bridge pid and start time.
@@ -72,4 +73,5 @@ Without a layout change: `herdr-app do pane.split '{"direction":"right","mod":"f
 - `node probe.cjs` prints JSON in well under a second on its second run.
 - With no agent running the section says "No bridge running" and the light is grey; with an agent that has figma-console and no plugin open, "No file connected" and a yellow light.
 - With the Desktop Bridge plugin open in a file and after an agent's `figma_get_status`, the file's name shows with that agent under it, the light is green, and the agent row spins while it calls Figma.
+- Clicking the file row hides its agent rows and shows their count, and a spinner while one is calling Figma; clicking again shows them; the choice survives a restart.
 - Clicking the agent row focuses its terminal; the file's button opens the file in the browser.
