@@ -18,7 +18,7 @@ async function out(exec, cmd, args, timeout = 15000) {
 }
 
 // [{ pid, port }] of every listening TCP socket.
-async function listeners(exec, platform) {
+export async function listeners(exec, platform) {
   const found = new Map();
   const add = (pid, port) => { if (pid > 0 && port > 0) found.set(`${pid}:${port}`, { pid, port }); };
   if (platform === "windows") {
@@ -63,6 +63,10 @@ async function processes(exec, platform) {
   return table;
 }
 
+// A command line as the list of its arguments, to run it again. Windows quotes
+// arguments with spaces; ps doesn't, so there they split.
+export const argv = (cmd) => [...cmd.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
+
 // The folder a process works in. Windows doesn't give it, so it is read off
 // the command line: the project around node_modules, else the script's folder.
 async function folder(exec, platform, pid, cmd) {
@@ -72,8 +76,7 @@ async function folder(exec, platform, pid, cmd) {
   if (platform === "macos") {
     try { return (await out(exec, "lsof", ["-a", "-d", "cwd", "-p", String(pid), "-Fn"])).split("\n").find((l) => l[0] === "n")?.slice(1) || null; } catch { return null; }
   }
-  const tokens = [...cmd.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]).slice(1);
-  const path = tokens.find((t) => /^[A-Za-z]:[\\/]/.test(t));
+  const path = argv(cmd).slice(1).find((t) => /^[A-Za-z]:[\\/]/.test(t));
   if (!path) return null;
   const cut = path.search(/[\\/]+node_modules[\\/]/);
   return (cut >= 0 ? path.slice(0, cut) : path.replace(/[\\/]+[^\\/]*$/, "")) || null;
@@ -85,7 +88,7 @@ function tool(cmd, proc) {
   if (bin) return bin[1].replace(/\.(cmd|exe|js|mjs|cjs)$/i, "");
   const pkg = cmd.match(/node_modules[\\/]+((?:@[^\\/]+[\\/]+)?[^\\/\s"]+)[\\/]/);
   if (pkg) return pkg[1].replace(/\\/g, "/");
-  const script = [...cmd.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]).slice(1).find((t) => !t.startsWith("-"));
+  const script = argv(cmd).slice(1).find((t) => !t.startsWith("-"));
   return script ? base(script).replace(/\.(js|mjs|cjs|ts|py|rb|php|jar)$/i, "") : proc;
 }
 

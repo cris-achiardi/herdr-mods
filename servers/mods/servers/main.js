@@ -1,7 +1,8 @@
 // A sidebar section listing the local servers that are running: every process
 // listening on a TCP port that was started from a Herdr terminal or is a dev
 // runtime (node, bun, python, ...), grouped under the space it belongs to.
-// Each one has a button that stops it and one that opens it in the browser.
+// Each one has a button that restarts it, one that stops it and one that opens
+// it in the browser.
 // A space's row folds its servers away, as a file's row does in figma-bridge.
 // The list comes from scan.js, run every few seconds while the section is shown.
 // props { demo: true } draws sample rows without running anything; with
@@ -9,8 +10,8 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, terminals, exec, theme, layout, props, home, window, run, notify } from "herdr";
-import { scan } from "./scan.js";
+import { spaces, panes, terminals, exec, hc, theme, layout, props, home, window, run, notify } from "herdr";
+import { scan, listeners, argv } from "./scan.js";
 
 const MOD = "servers";
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
@@ -102,17 +103,39 @@ export default class Servers extends View {
   }
 
   // Ends the server's process and the ones it started.
+  async kill(s) {
+    const r = window().platform === "windows" ? await exec("taskkill", ["/PID", String(s.pid), "/T", "/F"]) : await exec("kill", [String(s.pid)]);
+    if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split("\n")[0]);
+  }
+
   stop(s, cx) {
     if (this.stopping.has(s.pid)) return;
     this.stopping.add(s.pid);
     cx.notify();
     cx.spawn(async (cx) => {
-      try {
-        const r = window().platform === "windows" ? await exec("taskkill", ["/PID", String(s.pid), "/T", "/F"]) : await exec("kill", [String(s.pid)]);
-        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split("\n")[0]);
-      } catch (e) {
+      try { await this.kill(s); } catch (e) {
         this.stopping.delete(s.pid);
         notify({ title: `Couldn't stop ${s.name} :${s.port}`, body: String(e?.message ?? e).slice(0, 160), level: "error" });
+      }
+      this.poll(cx);
+    });
+  }
+
+  // Stops the server, waits for its port to be free (or a dev server would
+  // take the next one), then runs its command again in its folder, as a
+  // herdr-core terminal without a pane: it outlives the app, as the first did.
+  restart(s, cx) {
+    if (this.stopping.has(s.pid)) return;
+    this.stopping.add(s.pid);
+    cx.notify();
+    cx.spawn(async (cx) => {
+      try {
+        await this.kill(s);
+        for (let i = 0; i < 20 && (await listeners(exec, window().platform)).some((l) => l.port === s.port); i++);
+        const r = await hc(["run", "--json", "--bg", "--rm", "--no-parent", "--cwd", s.dir, "--", ...argv(s.cmd)]);
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split("\n")[0]);
+      } catch (e) {
+        notify({ title: `Couldn't restart ${s.name} :${s.port}`, body: String(e?.message ?? e).slice(0, 160), level: "error" });
       }
       this.poll(cx);
     });
@@ -169,6 +192,7 @@ export default class Servers extends View {
       .child(div().flex_none().text_size(11).text_color(t.dim).child(`:${s.port}`))
       .child(div().flex_1())
       .when(!stopping, (el) => el
+        .when(this.demo || Boolean(s.dir && s.cmd), (el) => el.child(this.button(`r-${s.pid}-${s.port}`, "restart", "Restart", t.foreground, t, (cx) => { if (!this.demo) this.restart(s, cx); })))
         .child(this.button(`x-${s.pid}-${s.port}`, "stop", "Stop", t.ansi1, t, (cx) => { if (!this.demo) this.stop(s, cx); }))
         .child(this.button(`o-${s.pid}-${s.port}`, "external", "Open in browser", t.foreground, t, (cx) => cx.open_url(`http://localhost:${s.port}`))));
   }
