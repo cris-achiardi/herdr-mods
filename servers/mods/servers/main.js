@@ -1,8 +1,8 @@
 // A sidebar section listing the local servers that are running: every process
 // listening on a TCP port that was started from a Herdr terminal or is a dev
 // runtime (node, bun, python, ...), grouped under the space it belongs to.
-// Each one has a button that restarts it, one that stops it and one that opens
-// it in the browser.
+// Each one has buttons that restart it, stop it, share it through a public
+// link (a Cloudflare quick tunnel) and open it in the browser.
 // A space's row folds its servers away, as a file's row does in figma-bridge.
 // The list comes from scan.js, run every few seconds while the section is shown.
 // props { demo: true } draws sample rows without running anything; with
@@ -16,11 +16,11 @@ import { scan, listeners, argv } from "./scan.js";
 const MOD = "servers";
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
 const EVERY = 5000;
-const HEAD = 41, GROUP = 28, ROW = 28, NOTE = 48, FOOT = 8, MAX = 300;
+const HEAD = 41, GROUP = 28, ROW = 28, SHARE = 26, NOTE = 48, FOOT = 8, MAX = 300;
 const OTHER = "other"; // the group of servers no space claims
 
 const DEMO = [
-  { space: "a", label: "website", servers: [{ port: 4321, pid: 1, name: "website", tool: "astro" }, { port: 6006, pid: 2, name: "storybook", tool: "storybook" }] },
+  { space: "a", label: "website", servers: [{ port: 4321, pid: 1, name: "website", tool: "astro", link: "https://quiet-river-sample.trycloudflare.com" }, { port: 6006, pid: 2, name: "storybook", tool: "storybook" }] },
   { space: "b", label: "api", servers: [{ port: 8000, pid: 3, name: "api", tool: "uvicorn" }] },
 ];
 
@@ -82,6 +82,11 @@ export default class Servers extends View {
     this.error = null;
     this.cache = new Map();
     this.stopping = new Set();
+    this.restarting = new Set(); // ports
+    this.pending = new Set();    // ports whose tunnel is starting
+    this.fresh = new Set();      // ports whose address is copied when it arrives
+    this.urls = new Map();       // tunnel terminal -> public address
+    this.missed = new Map();     // port -> reloads its server has been gone
     try { this.folded = new Set(JSON.parse(localStorage.getItem("folded") ?? "[]")); } catch { this.folded = new Set(); }
     if (this.demo) { this.folded = new Set(props().folded ?? []); return; }
     cx.timer.every(EVERY, (cx) => { if (!this.loading && (block()?.shown ?? true)) this.poll(cx); });
@@ -96,10 +101,83 @@ export default class Servers extends View {
         const pids = new Set(this.servers.map((s) => s.pid));
         for (const pid of this.stopping) if (!pids.has(pid)) this.stopping.delete(pid);
         this.error = null;
+        await this.links(cx);
       } catch (e) {
         this.error = { title: "Couldn't list the servers", body: String(e?.message ?? e).slice(0, 160) };
       } finally { this.loading = false; cx.notify(); }
     });
+  }
+
+  // The tunnels: live herdr-core terminals named share-<port>, each running
+  // cloudflared for that port. Map port -> terminal address.
+  shares() {
+    const found = new Map();
+    for (const t of terminals()) {
+      const m = /^share-(\d+)$/.exec(t.name ?? "");
+      if (m && (t.state ?? "live") === "live") found.set(Number(m[1]), t.address);
+    }
+    return found;
+  }
+
+  // Reads each new tunnel's public address off its terminal, and ends the
+  // tunnels whose server has been gone for three reloads.
+  async links(cx) {
+    const shared = this.shares(), ports = new Set(this.servers.map((s) => s.port));
+    for (const address of this.urls.keys()) if (![...shared.values()].includes(address)) this.urls.delete(address);
+    for (const [port, address] of shared) {
+      this.pending.delete(port);
+      if (!this.urls.has(address)) {
+        const url = (await hc(["read", address, "--lines", "200"])).stdout.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/)?.[0];
+        if (url) {
+          this.urls.set(address, url);
+          if (this.fresh.delete(port)) { cx.write_to_clipboard(url); notify({ title: "Public link copied", body: url, level: "success" }); }
+        }
+      }
+      const missed = ports.has(port) || this.restarting.has(port) ? 0 : (this.missed.get(port) ?? 0) + 1;
+      this.missed.set(port, missed);
+      if (missed >= 3) { this.missed.delete(port); await hc(["kill", address]); }
+    }
+  }
+
+  // The cloudflared program: on PATH, else where its installers put it (a
+  // running Herdr doesn't see a PATH changed after it started).
+  async cloudflared() {
+    const places = window().platform === "windows"
+      ? ["cloudflared", "C:\\Program Files (x86)\\cloudflared\\cloudflared.exe", "C:\\Program Files\\cloudflared\\cloudflared.exe"]
+      : ["cloudflared", "/opt/homebrew/bin/cloudflared", "/usr/local/bin/cloudflared"];
+    for (const path of places) {
+      try { if ((await exec(path, ["--version"], { timeout: 10000 })).code === 0) return path; } catch { /* not there */ }
+    }
+    return null;
+  }
+
+  // Gives the server a public address: a Cloudflare quick tunnel, run as a
+  // herdr-core terminal without a pane. Its address is copied once it is known.
+  share(s, cx) {
+    if (this.pending.has(s.port) || this.shares().has(s.port)) return;
+    this.pending.add(s.port);
+    cx.notify();
+    cx.spawn(async (cx) => {
+      try {
+        this.tunnel ??= await this.cloudflared();
+        if (!this.tunnel) throw new Error("cloudflared isn't installed. Windows: winget install Cloudflare.cloudflared. macOS: brew install cloudflared.");
+        // The Host header is rewritten because Vite-based servers refuse hosts they don't know.
+        const r = await hc(["run", "--json", "--bg", "--rm", "--no-parent", "--name", `share-${s.port}`, "--", this.tunnel, "tunnel", "--url", `http://localhost:${s.port}`, "--http-host-header", "localhost"]);
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split("\n")[0]);
+        this.fresh.add(s.port);
+      } catch (e) {
+        this.pending.delete(s.port);
+        notify({ title: `Couldn't share ${s.name} :${s.port}`, body: String(e?.message ?? e).slice(0, 200), level: "error" });
+      }
+      cx.notify();
+    });
+  }
+
+  unshare(port, cx) {
+    const address = this.shares().get(port);
+    this.pending.delete(port); this.fresh.delete(port);
+    if (!address) return;
+    cx.spawn(async (cx) => { await hc(["kill", address]); cx.notify(); });
   }
 
   // Ends the server's process and the ones it started.
@@ -112,6 +190,7 @@ export default class Servers extends View {
     if (this.stopping.has(s.pid)) return;
     this.stopping.add(s.pid);
     cx.notify();
+    this.unshare(s.port, cx);
     cx.spawn(async (cx) => {
       try { await this.kill(s); } catch (e) {
         this.stopping.delete(s.pid);
@@ -127,6 +206,7 @@ export default class Servers extends View {
   restart(s, cx) {
     if (this.stopping.has(s.pid)) return;
     this.stopping.add(s.pid);
+    this.restarting.add(s.port); // its tunnel, if any, stays for the new one
     cx.notify();
     cx.spawn(async (cx) => {
       try {
@@ -137,6 +217,7 @@ export default class Servers extends View {
       } catch (e) {
         notify({ title: `Couldn't restart ${s.name} :${s.port}`, body: String(e?.message ?? e).slice(0, 160), level: "error" });
       }
+      this.restarting.delete(s.port);
       this.poll(cx);
     });
   }
@@ -180,7 +261,19 @@ export default class Servers extends View {
       .when(folded, (el) => el.child(div().flex_none().px(5).py(1).rounded(4).border_1().border_color(t.border).text_size(10).text_color(t.muted).child(String(g.servers.length))));
   }
 
-  serverRow(g, s, t) {
+  // Under a shared server: its public address (click to copy) and a button
+  // that ends the tunnel. `url` is null while the tunnel is starting.
+  shareRow(s, url, t) {
+    return h_flex().id(`l-${s.port}`).h(SHARE).flex_none().pl(45).pr(8).gap(6).items_center().rounded(8).text_size(11)
+      .when(Boolean(url), (el) => el.cursor_pointer().hover((h) => h.bg(t.hover))
+        .tooltip("Public link: anyone who has it can see this server. Click to copy.")
+        .on_click((_e, cx) => { if (this.demo) return; cx.write_to_clipboard(url); notify({ title: "Public link copied", body: url, level: "success" }); }))
+      .child(url ? svg(ICON("link")).size(12).flex_none().text_color(t.accent) : svg(ICON("spinner")).size(12).flex_none().text_color(t.dim).spin(900))
+      .child(div().flex_1().min_w(0).truncate().text_color(url ? t.muted : t.dim).child(url ? url.replace(/^https:\/\//, "") : "Creating link…"))
+      .child(this.button(`u-${s.port}`, "x", "Stop sharing", t.foreground, t, (cx) => { if (!this.demo) this.unshare(s.port, cx); }));
+  }
+
+  serverRow(g, s, t, shared) {
     const stopping = this.stopping.has(s.pid), go = g.space !== OTHER && !this.demo;
     const tip = [s.tool && s.tool !== s.name ? s.tool : null, s.dir, s.pid ? `pid ${s.pid}` : null].filter(Boolean).join(" · ");
     return h_flex().id(`s-${s.pid}-${s.port}`).h(ROW).flex_none().pl(26).pr(8).gap(7).items_center().rounded(8).text_size(12)
@@ -194,6 +287,7 @@ export default class Servers extends View {
       .when(!stopping, (el) => el
         .when(this.demo || Boolean(s.dir && s.cmd), (el) => el.child(this.button(`r-${s.pid}-${s.port}`, "restart", "Restart", t.foreground, t, (cx) => { if (!this.demo) this.restart(s, cx); })))
         .child(this.button(`x-${s.pid}-${s.port}`, "stop", "Stop", t.ansi1, t, (cx) => { if (!this.demo) this.stop(s, cx); }))
+        .when(!shared, (el) => el.child(this.button(`h-${s.pid}-${s.port}`, "share", "Share a public link", t.accent, t, (cx) => { if (!this.demo) this.share(s, cx); })))
         .child(this.button(`o-${s.pid}-${s.port}`, "external", "Open in browser", t.foreground, t, (cx) => cx.open_url(`http://localhost:${s.port}`))));
   }
 
@@ -201,6 +295,7 @@ export default class Servers extends View {
     const t = theme();
     const list = this.demo ? DEMO : this.servers ? groups(this.servers) : [];
     const count = list.reduce((n, g) => n + g.servers.length, 0);
+    const shares = this.demo ? new Map() : this.shares();
     const rows = [];
     let height = HEAD + FOOT;
     // Folded server rows still count toward the height, so folding a space
@@ -210,7 +305,12 @@ export default class Servers extends View {
     else if (this.servers && !count) add(this.note("No servers running", "A dev server shows here once it listens on a port.", t), NOTE);
     else for (const g of list) {
       add(this.groupRow(g, t), GROUP);
-      for (const s of g.servers) add(this.folded.has(g.space) ? null : this.serverRow(g, s, t), ROW);
+      for (const s of g.servers) {
+        const open = !this.folded.has(g.space), address = shares.get(s.port);
+        const shared = Boolean(address) || this.pending.has(s.port) || Boolean(s.link);
+        add(open ? this.serverRow(g, s, t, shared) : null, ROW);
+        if (shared) add(open ? this.shareRow(s, s.link ?? this.urls.get(address) ?? null, t) : null, SHARE);
+      }
     }
     if (!this.demo) this.fit(height);
 
