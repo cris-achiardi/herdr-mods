@@ -9,7 +9,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, TextView } from "gpui-base";
-import { spaces, panes, focused, exec, theme, layout, settings, props, openOverlay, closeOverlay } from "herdr";
+import { spaces, panes, focused, exec, theme, layout, settings, props, openOverlay, closeOverlay, setShared } from "herdr";
 
 const MOD = "github";
 const ICON = (name) => `mods/github/${name}.svg`;
@@ -26,7 +26,29 @@ const VIEW = {
   issues: (n) => ["issue", "view", String(n), "--json", "number,title,body,author,state,createdAt,updatedAt,labels,comments,url"],
   prs: (n) => ["pr", "view", String(n), "--json", "number,title,body,author,state,createdAt,updatedAt,labels,comments,reviews,url,isDraft,reviewDecision,statusCheckRollup,headRefName,baseRefName,additions,deletions,changedFiles"],
 };
-const NAMES = { issues: "Issues", prs: "Pull requests" };
+const NAMES = { issues: "Issues", prs: "Pull requests", foryou: "For you" };
+
+// "For you": the open issues and pull requests, in any repository, that wait
+// on the signed-in person. One GraphQL request, four searches.
+const INBOX = 300000; // a hidden panel still asks this often, for the attention count
+const WAITING = 50; // items asked of each search
+const ATTENTION = "github.attention"; // shared: unread review requests and mentions
+const GROUPS = [
+  ["review", "Review requested", "is:pr review-requested:@me"],
+  ["mentions", "Mentioned", "mentions:@me"],
+  ["assigned", "Assigned to you", "assignee:@me"],
+  ["mine", "Your pull requests", "is:pr author:@me"],
+];
+const CLAIM = ["review", "mentions", "mine", "assigned"]; // an item in several searches shows in the first of these
+const QUERY = `query(${GROUPS.map(([id]) => `$${id}:String!`).join(",")}){${GROUPS.map(([id]) => `${id}:search(query:$${id},type:ISSUE,first:${WAITING}){issueCount nodes{...I}}`).join(" ")}}
+fragment I on Node{__typename ... on Issue{number title url state updatedAt author{login} repository{nameWithOwner} labels(first:5){nodes{name color}}}
+... on PullRequest{number title url state updatedAt isDraft reviewDecision author{login} repository{nameWithOwner} labels(first:5){nodes{name color}} commits(last:1){nodes{commit{statusCheckRollup{state}}}}}}`;
+const ROLLUP = { SUCCESS: "pass", FAILURE: "fail", ERROR: "fail" };
+
+function waiting(node) {
+  const roll = node.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state;
+  return { ...node, kind: node.__typename === "PullRequest" ? "prs" : "issues", repo: node.repository?.nameWithOwner ?? "", labels: node.labels?.nodes ?? [], checks: roll ? ROLLUP[roll] ?? "pending" : null };
+}
 
 // Where the focused terminal is, as the shipped Changes panel reads it.
 function location() {
@@ -91,34 +113,69 @@ export default class GitHub extends View {
     const start = props() ?? {};
     this.menu = start.role === "menu";
     if (this.menu) { this.at = 0; this.handle = cx.focus_handle(); this.handle.focus(); return; }
-    this.tab = (start.tab ?? localStorage.getItem("tab")) === "prs" ? "prs" : "issues";
+    const tab = start.tab ?? localStorage.getItem("tab");
+    this.tab = NAMES[tab] ? tab : "issues";
+    this.scope = (start.scope ?? localStorage.getItem("scope")) === "repo" ? "repo" : "all";
+    this.inbox = null; this.inboxError = null; this.inboxAt = 0; this.unread = new Set();
     this.reset();
     // Shown once the first load knows the repository.
-    this.start = Number.isInteger(start.open) ? { kind: this.tab, number: start.open, item: { number: start.open, title: "" } } : null;
+    this.start = Number.isInteger(start.open) && this.tab !== "foryou" ? { kind: this.tab, number: start.open, item: { number: start.open, title: "" } } : null;
     cx.timer.every(3000, (cx) => {
       if (shown() && !this.loading && (key() !== this.context || Date.now() - this.at > STALE)) this.refresh(cx);
+      // "For you" doesn't depend on the folder, and a hidden panel keeps the attention count fresh.
+      if (!this.inboxLoading && Date.now() - this.inboxAt > (shown() ? STALE : INBOX)) this.waitingFor(cx);
     });
     this.refresh(cx);
+    this.waitingFor(cx);
   }
 
+  // A repository's lists and what is open from them. An item opened from
+  // "For you" names its own repository and stays open.
   reset() {
     this.root = null; this.on = null; this.repo = null; this.at = 0;
     this.items = { issues: [], prs: [] }; this.listError = {}; this.error = null;
-    this.open = null; this.detail = null; this.detailError = null;
+    if (!this.open?.repo) { this.open = null; this.detail = null; this.detailError = null; }
   }
 
   // gh in the repository's folder, or against the pinned repository.
-  gh(args) {
+  gh(args, anywhere) {
     const pinned = props()?.repo;
-    return exec("gh", args, { ...(pinned ? {} : { cwd: this.root }), on: this.on, timeout: TIMEOUT }).catch((e) => {
+    return exec("gh", args, { ...(pinned || anywhere || !this.root ? {} : { cwd: this.root }), on: anywhere ? null : this.on, timeout: TIMEOUT }).catch((e) => {
       throw Object.assign(new Error(String(e?.message ?? e)), { missing: !/timed? ?out/i.test(String(e?.message ?? e)) });
     });
   }
 
-  async json(args) {
-    const r = await this.gh(props()?.repo ? [...args, "-R", props().repo] : args);
+  // `repo`: ask about that repository whatever the folder.
+  async json(args, repo) {
+    const r = await this.gh(repo ?? props()?.repo ? [...args, "-R", repo ?? props().repo] : args, Boolean(repo));
     if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
     return JSON.parse(r.stdout);
+  }
+
+  // Loads "For you": the four searches, and the unread notifications that mark
+  // which of their items have something new.
+  waitingFor(cx) {
+    if (this.inboxLoading) return;
+    this.inboxLoading = true; this.inboxAt = Date.now();
+    cx.spawn(async (cx) => {
+      try {
+        const r = await this.gh(["api", "graphql", "-f", `query=${QUERY}`, ...GROUPS.flatMap(([id, , q]) => ["-f", `${id}=is:open archived:false ${q} sort:updated-desc`])], true);
+        if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim());
+        const data = JSON.parse(r.stdout).data, seen = new Set(), inbox = {};
+        for (const id of CLAIM) inbox[id] = (data[id]?.nodes ?? []).filter((n) => n?.url && !seen.has(n.url) && seen.add(n.url)).map(waiting);
+        this.inbox = inbox; this.inboxError = null;
+        // Unread notifications, as "owner/name#number reason" lines. Failing here only loses the marks.
+        const n = await this.gh(["api", "notifications", "--paginate", "-q", '.[] | select(.subject.url != null) | (.subject.url | capture("repos/(?<r>[^/]+/[^/]+)/(issues|pulls)/(?<n>[0-9]+)$")) as $m | "\\($m.r)#\\($m.n) \\(.reason)"'], true).catch(() => null);
+        if (n?.code === 0) {
+          const lines = n.stdout.split("\n").map((l) => l.trim().split(" ")).filter((l) => l.length === 2);
+          this.unread = new Set(lines.map(([id]) => id));
+          const asks = new Set(lines.filter(([, reason]) => reason === "mention" || reason === "review_requested").map(([id]) => id));
+          setShared(ATTENTION, [...inbox.review, ...inbox.mentions].filter((it) => asks.has(`${it.repo}#${it.number}`)).length);
+        }
+      } catch (e) { this.inboxError = explain(e, e?.missing); }
+      finally { this.inboxLoading = false; cx.notify(); }
+    });
+    cx.notify();
   }
 
   refresh(cx, force) {
@@ -154,13 +211,13 @@ export default class GitHub extends View {
 
   async load(open) {
     try {
-      const detail = await this.json(VIEW[open.kind](open.number));
+      const detail = await this.json(VIEW[open.kind](open.number), open.repo);
       if (this.open === open) { this.detail = detail; this.detailError = null; }
     } catch (e) { if (this.open === open && !this.detail) this.detailError = explain(e, e?.missing).body; }
   }
 
   pick(kind, item, cx) {
-    const open = { kind, number: item.number, item };
+    const open = { kind, number: item.number, item, repo: item.repo };
     this.open = open; this.detail = null; this.detailError = null; this.copied = false;
     cx.spawn(async (cx) => { await this.load(open); cx.notify(); });
     cx.notify();
@@ -181,11 +238,13 @@ export default class GitHub extends View {
       .child(div().max_w(96).truncate().child(l.name));
   }
 
-  row(kind, it, t) {
-    const [, color, icon] = this.stateOf(kind, it, t), checks = kind === "prs" ? CHECKS[checksOf(it.statusCheckRollup)] : null;
+  // `far`: a "For you" row, which names its repository unless only this one is listed.
+  row(kind, it, t, far) {
+    const [, color, icon] = this.stateOf(kind, it, t), checks = kind === "prs" ? CHECKS[it.checks ?? checksOf(it.statusCheckRollup)] : null;
+    const fresh = Boolean(far) && this.unread.has(`${it.repo}#${it.number}`), where = far && this.scope === "all" ? `${it.repo}#${it.number}` : `#${it.number}`;
     const review = it.reviewDecision === "APPROVED" || it.reviewDecision === "CHANGES_REQUESTED" ? REVIEW[it.reviewDecision] : null;
     const labels = it.labels ?? [];
-    return h_flex().id(`gh-${kind}-${it.number}`).flex_none().px(8).py(7).gap(9).items_start().rounded(7).cursor_pointer().hover((s) => s.bg(t.hover))
+    return h_flex().id(far ? `gh-${far}-${it.repo}-${it.number}` : `gh-${kind}-${it.number}`).flex_none().px(8).py(7).gap(9).items_start().rounded(7).cursor_pointer().hover((s) => s.bg(t.hover))
       .on_click((_e, cx) => this.pick(kind, it, cx))
       .on_mouse_down("right", (_e, cx) => {
         cx.stop_propagation();
@@ -193,9 +252,11 @@ export default class GitHub extends View {
       })
       .child(div().pt(2).flex_none().child(svg(ICON(icon)).size(14).text_color(color)))
       .child(v_flex().flex_1().min_w(0).gap(4)
-        .child(div().truncate().child(it.title))
+        .child(h_flex().min_w(0).gap(7).items_center()
+          .child(div().min_w(0).truncate().child(it.title))
+          .when(fresh, (e) => e.child(div().id(`gh-new-${it.repo}-${it.number}`).size(7).flex_none().rounded(4).bg(t.accent).tooltip("Unread on GitHub"))))
         .child(h_flex().min_w(0).gap(6).items_center().overflow_hidden().text_size(11).text_color(t.dim)
-          .child(div().flex_none().child(`#${it.number} · ${it.author?.login ?? "ghost"} · ${ago(it.updatedAt)}`))
+          .child(div().flex_none().child(`${where} · ${it.author?.login ?? "ghost"} · ${ago(it.updatedAt)}`))
           .when(Boolean(checks), (e) => e.child(div().size(7).flex_none().rounded(4).bg(t[checks[1]])))
           .when(Boolean(review), (e) => e.child(div().flex_none().text_color(t[review[1]]).child(review[0])))
           .children(labels.slice(0, 2).map((l) => this.label(l, t)))
@@ -208,6 +269,30 @@ export default class GitHub extends View {
       .children(rows.map((it) => this.row(this.tab, it, t)))
       .when(!rows.length, (e) => e.child(div().p(8).text_size(12).text_color(t.dim).child(empty)))
       .when(rows.length >= LIMIT, (e) => e.child(div().p(8).text_size(11).text_color(t.dim).child(`Showing the ${LIMIT} most recently created`)));
+  }
+
+  // "For you": a switch between every repository and this one, then the groups.
+  forYou(t) {
+    const here = this.repo?.nameWithOwner, mine = (id) => (this.inbox?.[id] ?? []).filter((it) => this.scope === "all" || it.repo === here);
+    const total = GROUPS.reduce((n, [id]) => n + mine(id).length, 0);
+    const pill = (id, label) => h_flex().id(`gh-scope-${id}`).h(22).px(8).flex_none().items_center().rounded(5).cursor_pointer().text_size(11.5)
+      .bg(this.scope === id ? t.selected : t.background).text_color(this.scope === id ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
+      .on_click((_e, cx) => { this.scope = id; localStorage.setItem("scope", id); cx.notify(); }).child(label);
+    const empty = this.inboxError ? null : !this.inbox ? "Loading…" : this.scope === "repo" && !here ? "This folder isn't a GitHub repository. Switch to All repos."
+      : total ? null : `Nothing is waiting for you${this.scope === "repo" ? ` in ${here}` : ""}.`;
+    return v_flex().id("gh-foryou").flex_1().min_h(0).overflow_y_scrollbar().p(6)
+      .child(h_flex().h(30).flex_none().px(4).gap(3).items_center().child(pill("all", "All repos")).child(pill("repo", "This repo"))
+        .child(div().flex_1().min_w(0).truncate().pl(6).text_size(11).text_color(t.dim).child(this.scope === "repo" ? here ?? "" : "")))
+      .when(Boolean(this.inboxError), (e) => e.child(v_flex().p(8).gap(4).child(div().font_semibold().child(this.inboxError.title)).child(div().text_size(12).text_color(t.muted).child(this.inboxError.body ?? ""))))
+      .when(Boolean(empty), (e) => e.child(div().p(8).text_size(12).text_color(t.dim).child(empty)))
+      .children(this.inboxError ? [] : GROUPS.flatMap(([id, title]) => {
+        const rows = mine(id);
+        return rows.length ? [
+          h_flex().h(28).flex_none().px(8).pt(6).gap(6).items_center().text_size(11.5).text_color(t.dim)
+            .child(div().flex_none().font_medium().child(title)).child(div().flex_none().text_size(10.5).child(rows.length >= WAITING ? `${WAITING}+` : String(rows.length))),
+          ...rows.map((it) => this.row(it.kind, it, t, id)),
+        ] : [];
+      }));
   }
 
   message(m, t) {
@@ -281,31 +366,33 @@ export default class GitHub extends View {
     const iconButton = (id, name, action, spin) => div().id(id).size(24).flex().flex_none().items_center().justify_center().rounded(6).cursor_pointer().text_color(t.muted)
       .hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(action)
       .child(spin ? svg(ICON(name)).size(13).spin(900) : svg(ICON(name)).size(13));
+    const waitingHere = GROUPS.reduce((n, [g]) => n + (this.inbox?.[g] ?? []).filter((it) => this.scope === "all" || it.repo === this.repo?.nameWithOwner).length, 0);
     const tab = (id) => {
-      const on = this.tab === id, n = this.items[id].length;
+      const on = this.tab === id, n = id === "foryou" ? waitingHere : this.items[id].length;
       return h_flex().id(`gh-tab-${id}`).h(26).px(9).gap(6).flex_none().items_center().rounded(6).cursor_pointer().text_size(12)
         .bg(on ? t.selected : t.background).text_color(on ? t.foreground : t.muted).hover((s) => s.bg(t.hover))
         .on_click((_e, cx) => { this.tab = id; localStorage.setItem("tab", id); cx.notify(); })
         .child(NAMES[id])
-        .child(div().text_size(10.5).text_color(t.dim).child(n >= LIMIT ? `${LIMIT}+` : String(n)));
+        .child(div().text_size(10.5).text_color(t.dim).child(id !== "foryou" && n >= LIMIT ? `${LIMIT}+` : String(n)));
     };
     return v_flex().id("github").size_full().min_h(0).rounded(10).overflow_hidden().bg(t.background).border_1().border_color(t.border).text_color(t.foreground).text_size(13)
       .child(h_flex().h(42).flex_none().pl(14).pr(9).gap(8).items_center().border_b(1).border_color(t.border)
         .when(Boolean(open), (e) => e.child(iconButton("gh-back", "back", (_e, cx) => { this.open = null; this.detail = null; cx.notify(); })))
         .child(div().flex_none().font_semibold().child(open ? `#${open.number}` : "GitHub"))
-        .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.dim).child(this.repo?.nameWithOwner ?? ""))
+        .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(t.dim).child(open?.repo ?? this.repo?.nameWithOwner ?? ""))
         .when(Boolean(open), (e) => e
           .child(iconButton("gh-copy", this.copied ? "check" : "link", (_e, cx) => {
             cx.write_to_clipboard(url); this.copied = true; cx.notify();
             cx.timer.after(1500, (cx) => { this.copied = false; cx.notify(); });
           }))
           .child(iconButton("gh-web", "external", (_e, cx) => cx.open_url(url))))
-        .when(!open && Boolean(this.repo), (e) => e.child(iconButton("gh-repo", "external", (_e, cx) => cx.open_url(`${this.repo.url}/${this.tab === "prs" ? "pulls" : "issues"}`))))
-        .child(iconButton("gh-refresh", "refresh", (_e, cx) => this.refresh(cx, true), Boolean(this.loading))))
-      .when(Boolean(this.error), (e) => e.child(this.message(this.error, t)))
-      .when(!this.error && !open, (e) => e
-        .child(h_flex().h(38).flex_none().px(8).gap(3).items_center().border_b(1).border_color(t.border).child(tab("issues")).child(tab("prs")))
-        .child(this.list(t)))
-      .when(!this.error && Boolean(open), (e) => e.child(this.detailView(t)));
+        .when(!open && this.tab === "foryou", (e) => e.child(iconButton("gh-inbox", "external", (_e, cx) => cx.open_url("https://github.com/notifications"))))
+        .when(!open && this.tab !== "foryou" && Boolean(this.repo), (e) => e.child(iconButton("gh-repo", "external", (_e, cx) => cx.open_url(`${this.repo.url}/${this.tab === "prs" ? "pulls" : "issues"}`))))
+        .child(iconButton("gh-refresh", "refresh", (_e, cx) => { this.refresh(cx, true); this.waitingFor(cx); }, Boolean(this.loading || this.inboxLoading))))
+      // "For you" works outside a repository; the repository's own tabs show its problem instead.
+      .when(!open, (e) => e
+        .child(h_flex().h(38).flex_none().px(8).gap(3).items_center().border_b(1).border_color(t.border).child(tab("issues")).child(tab("prs")).child(tab("foryou")))
+        .child(this.tab === "foryou" ? this.forYou(t) : this.error ? this.message(this.error, t) : this.list(t)))
+      .when(Boolean(open), (e) => e.child(this.detailView(t)));
   }
 }
