@@ -7,6 +7,7 @@ Mods for the [Herdr](https://herdr.dev) desktop app. Each mod lives in its own f
 | [Space Menu](space-menu/) | A right-click menu for the Spaces list: open a folder as a space, or several folders as one space with a tab per folder. |
 | [GitHub](github/) | A side panel listing the repository's open GitHub issues and pull requests, with each one's description and conversation. |
 | [Figma Bridge](figma-bridge/) | A sidebar section showing the Figma files connected to the figma-console-mcp bridge and the agent working on each. |
+| [Skills](skills/) | A side panel listing the Claude Code skills and slash commands of the project and of `~/.claude`, with each one's text. |
 
 ## Install
 
