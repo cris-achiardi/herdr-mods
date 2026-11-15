@@ -85,7 +85,7 @@ export default class FigmaBridge extends View {
     });
   }
 
-  // The block takes the height of what it lists (a personal layout only).
+  // The block takes the height of what it lists, unfolded (a personal layout only).
   fit(height) {
     const me = block(), px = Math.min(MAX, height);
     if (!me?.id || me.px === px || this.sized === px) return;
@@ -161,14 +161,16 @@ export default class FigmaBridge extends View {
     const t = theme(), d = this.data, now = Date.now();
     const rows = [];
     let height = HEAD + FOOT;
-    const add = (el, h) => { rows.push(el); height += h; };
+    // Folded agent rows still count toward the height, so folding a file
+    // doesn't resize the block and move the heading.
+    const add = (el, h) => { if (el) rows.push(el); height += h; };
     if (this.error) add(this.note(this.error.title, this.error.body, t), NOTE);
     else if (d && !d.bridges.some((b) => b.up)) add(this.note("No bridge running", "It starts with an agent that has figma-console.", t), NOTE);
     else if (d && !d.connected) add(this.note("No file connected", "Run the Desktop Bridge plugin in a Figma file.", t), NOTE);
     else if (d) {
       for (const f of d.files) {
         add(this.fileRow(f, now, t), FILE);
-        if (!this.folded.has(f.key)) for (const a of f.agents) add(this.agentRow(f, a, now, t), AGENT);
+        for (const a of f.agents) add(this.folded.has(f.key) ? null : this.agentRow(f, a, now, t), AGENT);
       }
       if (d.unnamed) add(
         h_flex().id("unnamed").h(FILE).flex_none().px(8).gap(9).items_center().text_color(t.dim)

@@ -30,7 +30,7 @@ The row of the focused agent is `selected`. A session that is not in a Herdr ter
 - Clicking a file row that has agents folds or unfolds them. Folded files are kept in `localStorage` by file key.
 - Clicking an agent row focuses that agent's pane. Clicking a file's button opens `https://www.figma.com/file/<key>` in the system browser.
 - It reloads every 3 s while its layout block is shown; a hidden block runs nothing.
-- The block resizes itself to its content with `layout.resize`, up to 300px, then scrolls.
+- The block resizes itself with `layout.resize` to the height of its content with every file unfolded, up to 300px, then scrolls. Folding a file therefore leaves the block's size and the heading's position unchanged; the freed space stays empty below the rows.
 - Agent statuses (working, blocked, done, idle) are not shown; only Figma activity is.
 
 ## Built from
