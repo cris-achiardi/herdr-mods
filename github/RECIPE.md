@@ -30,6 +30,8 @@ An empty list reads "No open issues" / "No open pull requests", "Loading…" whi
 
 Until the detail arrives the title and state come from the list row and the body reads "Loading…".
 
+**Row menu**: a popup at the pointer, 200×72px on `popover`, 5px padding, text 12.8px. Two rows, each 31px high, 8px side padding, radius 7, a 14px `muted` icon, 9px gap and a label: "Open in browser" (external-link icon) and "Copy URL" (link icon). The highlighted row is `selected`, the first one to begin with; hovered rows are `hover`.
+
 **Problems** replace the tabs and list with a title (semibold) and one `muted` sentence: "Not a git repository" / "No folder", "GitHub CLI not found", "Not signed in to GitHub", "Not a GitHub repository", "GitHub didn't answer", or "Couldn't load from GitHub" with the first line of `gh`'s error.
 
 ## How it behaves
@@ -38,6 +40,7 @@ Until the detail arrives the title and state come from the list row and the body
 - The repository is found from the focused pane's live folder (else the focused terminal's, else the active space's folder), on that space's machine, exactly as the shipped `changes` mod does. Focusing a terminal in another repository reloads the panel for it; another folder of the same repository reloads nothing.
 - It reloads when shown data is older than 2 minutes, checked every 3 s, and when refresh is clicked. While its layout block is hidden, or is not the shown child of its stack, it makes no requests; it catches up within 3 s of being shown.
 - Clicking a tab switches lists; the choice is kept in `localStorage`. Both lists load together.
+- Right-clicking a row, issue or pull request, opens the row menu. Open in browser opens that item's GitHub page in the system browser; Copy URL puts its URL on the clipboard. Either closes the menu. Up/down move the highlight, Enter runs the row, Esc or a click elsewhere closes it.
 - Clicking a row opens its detail and loads it. The back arrow returns to the list. A reload also reloads the open detail.
 - The header's external-link button opens the repository's `/issues` or `/pulls` page (the shown tab); in a detail it opens the item. Copy link puts the item's URL on the clipboard.
 - Nothing is written to GitHub or to the repository.
@@ -45,8 +48,8 @@ Until the detail arrives the title and state come from the list row and the body
 ## Built from
 
 - `mods/github/`: `main.js`, `mod.json` `{ "place": "none" }`, its icons (`issue`, `issue-closed`, `pr`, `pr-draft`, `merged`, `external`, `refresh`, `back`, `link`, `check`, drawn after Lucide) and `LICENSE-lucide.txt`.
-- `main.js`: one `View`. Props, all optional: `repo` (`"owner/name"`: skip the folder, pass `-R repo` to every `gh` call), `tab` (`"issues"` | `"prs"`), `open` (a number: start on that item of `tab`).
-- `herdr` functions: `spaces`, `panes`, `focused`, `exec`, `theme`, `layout`, `settings`, `props`. `gpui-base`: `v_flex`, `h_flex`, `TextView.markdown(id, text).selectable(true)`. `cx.open_url`, `cx.write_to_clipboard`, `cx.timer.every`, `cx.timer.after`. No app commands.
+- `main.js`: one `View` with two roles. `props().role === "menu"` is the row menu, with `props.url`; the panel opens it with `openOverlay({ mod: "github", kind: "popup", at: "pointer", width: 200, height: 72, props: { role: "menu", url } })` from the row's `.on_mouse_down("right", …)`, stopping propagation. Otherwise it is the panel. The panel's props, all optional: `repo` (`"owner/name"`: skip the folder, pass `-R repo` to every `gh` call), `tab` (`"issues"` | `"prs"`), `open` (a number: start on that item of `tab`).
+- `herdr` functions: `spaces`, `panes`, `focused`, `exec`, `theme`, `layout`, `settings`, `props`, `openOverlay`, `closeOverlay`. `gpui-base`: `v_flex`, `h_flex`, `TextView.markdown(id, text).selectable(true)`. `cx.open_url`, `cx.write_to_clipboard`, `cx.timer.every`, `cx.timer.after`. No app commands.
 - Programs, each with `cwd` the repository root, `on` the space's machine and a 20 s timeout:
   - `git rev-parse --show-toplevel`
   - `gh repo view --json nameWithOwner,url`
@@ -84,6 +87,7 @@ Until the detail arrives the title and state come from the list row and the body
 - `gh pr list --state closed` leaves out merged pull requests; a Closed filter needs `--state all` or `merged` handled separately. This build lists open items only.
 - Every `TextView.markdown` needs its own id (item and comment index), or one comment's text shows in another.
 - `.when(cond, …)` needs a real boolean.
+- A popup's tasks end when it closes: the menu calls `cx.open_url` or `cx.write_to_clipboard` first, then `closeOverlay`. The menu role must not start the panel's timer or loads.
 - `herdr-app check` renders the first frame only (loading). To see lists and a detail without a GitHub repository at hand: `herdr-app do pane.split '{"direction":"right","mod":"github","props":{"repo":"cli/cli","tab":"prs","open":<number>}}'`.
 - Built and used on Windows with Herdr 0.1.15 and gh 2.85. Untested on macOS, Linux and remote machines.
 
@@ -92,6 +96,7 @@ Until the detail arrives the title and state come from the list row and the body
 - `herdr-app check` passes for `mods/github` and for the tab bar mod that was edited; `herdr-app status` shows no errors.
 - The tab bar has a GitHub button; clicking it shows the panel, clicking it again hides it.
 - In a repository on GitHub the header shows `owner/name`, and both tabs show their counts and rows that match `gh issue list` and `gh pr list`.
+- Right-clicking a row, in either list, shows a two-item menu; Open in browser opens that item in the browser, Copy URL puts its URL on the clipboard, and the panel stays on the list.
 - Clicking a row shows its description and comments; the back arrow returns to the list; Open on GitHub opens that item in the browser.
 - Focusing a terminal in a folder that isn't a repository shows "Not a git repository"; focusing one in another GitHub repository shows that repository's lists.
 - With the panel hidden for several minutes, no `gh` process is started.

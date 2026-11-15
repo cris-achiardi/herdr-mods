@@ -8,6 +8,7 @@ A side panel for the [Herdr](https://herdr.dev) desktop app that lists the open 
 
 - **Issues** and **Pull requests** lists for the repository of the focused terminal, with author, age and labels. Pull requests also show draft state, whether their checks pass, and the review decision.
 - **A detail view** per issue or pull request: state, branch and diff size (pull requests), labels, the description and every comment and review, rendered as markdown.
+- **Right-click a row** for Open in browser and Copy URL, without opening it in the panel first.
 - **Open on GitHub** and **Copy link** for the open item, and a link to the repository's issue or pull request page.
 - It follows you: focus a terminal in another repository and the panel shows that one.
 

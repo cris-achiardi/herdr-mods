@@ -4,10 +4,12 @@
 // props { repo: "owner/name" } pins a copy to that repository whatever the folder;
 // { tab: "issues" | "prs" } chooses the list it starts on, and { open: 123 }
 // starts on that issue or pull request (of `tab`).
+// Role "menu" (props { role: "menu", url }) is a row's right-click menu, opened
+// by the panel as a popup at the pointer.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, TextView } from "gpui-base";
-import { spaces, panes, focused, exec, theme, layout, settings, props } from "herdr";
+import { spaces, panes, focused, exec, theme, layout, settings, props, openOverlay, closeOverlay } from "herdr";
 
 const MOD = "github";
 const ICON = (name) => `mods/github/${name}.svg`;
@@ -87,6 +89,8 @@ function explain(e, missing) {
 export default class GitHub extends View {
   init(_props, cx) {
     const start = props() ?? {};
+    this.menu = start.role === "menu";
+    if (this.menu) { this.at = 0; this.handle = cx.focus_handle(); this.handle.focus(); return; }
     this.tab = (start.tab ?? localStorage.getItem("tab")) === "prs" ? "prs" : "issues";
     this.reset();
     // Shown once the first load knows the repository.
@@ -183,6 +187,10 @@ export default class GitHub extends View {
     const labels = it.labels ?? [];
     return h_flex().id(`gh-${kind}-${it.number}`).flex_none().px(8).py(7).gap(9).items_start().rounded(7).cursor_pointer().hover((s) => s.bg(t.hover))
       .on_click((_e, cx) => this.pick(kind, it, cx))
+      .on_mouse_down("right", (_e, cx) => {
+        cx.stop_propagation();
+        openOverlay({ mod: MOD, kind: "popup", at: "pointer", width: 200, height: 72, props: { role: "menu", url: it.url } });
+      })
       .child(div().pt(2).flex_none().child(svg(ICON(icon)).size(14).text_color(color)))
       .child(v_flex().flex_1().min_w(0).gap(4)
         .child(div().truncate().child(it.title))
@@ -240,7 +248,33 @@ export default class GitHub extends View {
           .child(text(`gh-c-${kind}-${number}-${i}`, c.body ?? "")))));
   }
 
+  // The row menu. An item acts before the popup closes, since a popup's tasks
+  // end when it does.
+  menuView() {
+    const t = theme(), { url, overlay } = props();
+    const items = [
+      { label: "Open in browser", icon: "external", act: (cx) => cx.open_url(url) },
+      { label: "Copy URL", icon: "link", act: (cx) => cx.write_to_clipboard(url) },
+    ];
+    const choose = (i, cx) => { if (url) items[i].act(cx); closeOverlay(overlay); };
+    return v_flex().id("github-menu").track_focus(this.handle).w_full().p(5).bg(t.popover).text_size(12.8)
+      .on_key_down((e, cx) => {
+        if (e.key === "down") this.at = (this.at + 1) % items.length;
+        else if (e.key === "up") this.at = (this.at + items.length - 1) % items.length;
+        else if (e.key === "enter") choose(this.at, cx);
+        else if (e.key === "escape") closeOverlay(overlay);
+        else return;
+        cx.stop_propagation();
+        cx.notify();
+      })
+      .children(items.map((it, i) => h_flex().id(`gh-menu-${i}`).h(31).px(8).gap(9).items_center().rounded(7).cursor_pointer().text_color(t.foreground)
+        .when(i === this.at, (e) => e.bg(t.selected)).hover((s) => s.bg(t.hover)).on_click((_e, cx) => choose(i, cx))
+        .child(svg(ICON(it.icon)).size(14).flex_none().text_color(t.muted))
+        .child(div().flex_1().child(it.label))));
+  }
+
   render(cx) {
+    if (this.menu) return this.menuView();
     if (key() !== this.context && shown()) this.refresh(cx);
     const t = theme(), open = this.open;
     const url = open && ((this.detail ?? open.item).url ?? `${this.repo?.url}/${open.kind === "prs" ? "pull" : "issues"}/${open.number}`);
