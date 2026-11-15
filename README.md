@@ -9,6 +9,7 @@ Mods for the [Herdr](https://herdr.dev) desktop app. Each mod lives in its own f
 | [Figma Bridge](figma-bridge/) | A sidebar section showing the Figma files connected to the figma-console-mcp bridge and the agent working on each. |
 | [Skills](skills/) | A side panel listing the Claude Code skills and slash commands of the project and of `~/.claude`, with each one's text. |
 | [Servers](servers/) | A sidebar section listing the local servers running on your computer under their space, each with a stop button and an open-in-browser button. |
+| [Scripts](scripts/) | A side panel listing the project's `package.json` scripts; a click runs one in a new terminal pane. |
 
 ## Install
 
