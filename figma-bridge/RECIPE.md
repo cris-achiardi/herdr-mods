@@ -30,7 +30,8 @@ The row of the focused agent is `selected`. A session that is not in a Herdr ter
 - Clicking a file row that has agents folds or unfolds them. Folded files are kept in `localStorage` by file key.
 - Clicking an agent row focuses that agent's pane. Clicking a file's button opens `https://www.figma.com/file/<key>` in the system browser.
 - It reloads every 3 s while its layout block is shown; a hidden block runs nothing.
-- The block resizes itself with `layout.resize` to the height of its content with every file unfolded, up to 300px, then scrolls. Folding a file therefore leaves the block's size and the heading's position unchanged; the freed space stays empty below the rows.
+- The block resizes itself with `layout.resize` to the height of its content with every file unfolded, up to 300px, then scrolls. Folding a file leaves the block's size unchanged. It does so once the first probe has returned, not before.
+- Dragging the block's edge to another height stops that: the block keeps the dragged height whatever is listed, scrolling when the rows don't fit, and across restarts (Herdr keeps the size in `layouts/.state/`; the mod keeps `fit` in `localStorage`: `[height it last asked for or saw, whether the person's height is kept, the height it replaced until the asked one is seen, then the same as the first]`, written whenever one of them changes). Dragging the edge back to within 8px of the content's height makes the block fit itself again.
 - Agent statuses (working, blocked, done, idle) are not shown; only Figma activity is.
 
 ## Built from
@@ -65,6 +66,8 @@ Without a layout change: `herdr-app do pane.split '{"direction":"right","mod":"f
 - `probe.cjs` must keep the `.cjs` extension: Herdr reads `.js` in a mod folder as a module.
 - The block is found by `content.mod === "figma-bridge"`; a renamed copy must update that constant and the probe's path.
 - `layout.resize` only works on a personal layout. In a shipped one the block keeps the size the layout gives it.
+- A drag is told from the mod's own resize by the block's `size.px` in `layout()`: it is a drag when it is neither the height the mod last asked for nor the one that was there before it asked (`layout()` can still show that one on the next render, and always does in a shipped layout). Once the asked height is seen, the one before it is no longer excused; with nothing stored, the first height seen is the baseline. There is no resize event. A layout that stored another height than the one asked for (a clamp) would read as a drag.
+- While the block fits itself, `layout.resize` with a smaller `px` hands the difference to the weighted blocks above (`spaces`, `agents`) and moves this section's heading down by as much: a file disconnecting lowers the heading. A dragged height doesn't move. The order of the layout's nodes never changes.
 - Built and used on Windows with Herdr 0.1.15, figma-console-mcp 1.46, Claude Code 2.1.325. Untested on macOS and Linux, and with agents other than Claude Code (their bridges light the dot, nothing more).
 
 ## Done when
@@ -73,5 +76,6 @@ Without a layout change: `herdr-app do pane.split '{"direction":"right","mod":"f
 - `node probe.cjs` prints JSON in well under a second on its second run.
 - With no agent running the section says "No bridge running" and the light is grey; with an agent that has figma-console and no plugin open, "No file connected" and a yellow light.
 - With the Desktop Bridge plugin open in a file and after an agent's `figma_get_status`, the file's name shows with that agent under it, the light is green, and the agent row spins while it calls Figma.
+- Closing the plugin in a connected file removes its row and the block shrinks to what is left. After its edge is dragged, the block and the heading stay where they are whatever connects or disconnects, also after a restart; dragged back to about the content's height, it fits itself again.
 - Clicking the file row hides its agent rows and shows their count, and a spinner while one is calling Figma; clicking again shows them; the choice survives a restart.
 - Clicking the agent row focuses its terminal; the file's button opens the file in the browser.

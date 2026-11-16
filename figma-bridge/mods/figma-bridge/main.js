@@ -16,7 +16,7 @@ const MOD = "figma-bridge";
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
 const EVERY = 3000;
 const ACTIVE = 45000; // an agent counts as working on Figma this long after a call
-const HEAD = 41, FILE = 30, AGENT = 26, NOTE = 48, FOOT = 8, MAX = 300;
+const HEAD = 41, FILE = 30, AGENT = 26, NOTE = 48, FOOT = 8, MAX = 300, SNAP = 8;
 
 const DEMO = {
   connected: 2, unnamed: 0, bridges: [{ up: true }],
@@ -66,6 +66,7 @@ export default class FigmaBridge extends View {
     this.error = null;
     try { this.folded = new Set(JSON.parse(localStorage.getItem("folded") ?? "[]")); } catch { this.folded = new Set(); }
     if (this.demo) { this.folded = new Set(props().folded ?? []); return; }
+    try { [this.at, this.kept, this.from] = JSON.parse(localStorage.getItem("fit") ?? "[]"); } catch { /* fits anew */ }
     cx.timer.every(EVERY, (cx) => { if (!this.loading && (block()?.shown ?? true)) this.poll(cx); });
     this.poll(cx);
   }
@@ -85,12 +86,28 @@ export default class FigmaBridge extends View {
     });
   }
 
-  // The block takes the height of what it lists, unfolded (a personal layout only).
+  // The block takes the height of what it lists, unfolded (a personal layout
+  // only), until its edge is dragged: a height this mod didn't ask for is the
+  // person's, and is kept whatever is listed. Dragged back to within SNAP of
+  // the fitted height, the block fits itself again. `at` is the height last
+  // asked for or seen (the first one seen, with nothing stored); `from` the
+  // one it replaced, which layout() can still show (always, in a shipped
+  // layout) until `at` is seen. Herdr keeps the height itself; every change
+  // of the three is stored as it happens, or a restart would misread a drag.
   fit(height) {
     const me = block(), px = Math.min(MAX, height);
-    if (!me?.id || me.px === px || this.sized === px) return;
-    this.sized = px;
+    if (!me?.id) return;
+    if (this.at == null || me.px === this.at) this.keep(me.px, this.kept === true, me.px);
+    else if (me.px != null && me.px !== this.from) this.keep(me.px, Math.abs(me.px - px) > SNAP, me.px);
+    if (this.kept || me.px === px || this.at === px) return;
+    this.keep(px, false, me.px);
     run("layout.resize", { id: me.id, px });
+  }
+
+  keep(at, kept, from) {
+    if (at === this.at && kept === this.kept && from === this.from) return;
+    this.at = at; this.kept = kept; this.from = from;
+    localStorage.setItem("fit", JSON.stringify([at, kept, from]));
   }
 
   light(t) {
@@ -180,7 +197,7 @@ export default class FigmaBridge extends View {
         FILE,
       );
     }
-    if (!this.demo) this.fit(height);
+    if (!this.demo && (d || this.error)) this.fit(height); // not before the first probe: it would shrink and regrow
 
     return v_flex().size_full().min_h(0).bg(t.chrome).border_t(1).border_color(t.border).text_size(13).text_color(t.foreground)
       .when(this.demo, (el) => el.w(268).h(height)) // the sidebar's width, for a picture
