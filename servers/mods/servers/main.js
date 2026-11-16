@@ -4,19 +4,20 @@
 // Each one has buttons that restart it, stop it, share it through a public
 // link (a Cloudflare quick tunnel) and open it in the browser.
 // A space's row folds its servers away, as a file's row does in figma-bridge.
+// Its top edge is a grip: dragged, it sets the section's height.
 // The list comes from scan.js, run every few seconds while the section is shown.
 // props { demo: true } draws sample rows without running anything; with
 // { folded: ["b"] } the second sample space starts folded.
 
 import { View, div, svg } from "gpui-kit";
-import { v_flex, h_flex } from "gpui-base";
+import { v_flex, h_flex, Slider, SliderTrack, SliderIndicator, SliderThumb, SliderState } from "gpui-base";
 import { spaces, panes, terminals, exec, hc, theme, layout, props, home, window, run, notify } from "herdr";
 import { scan, listeners, argv } from "./scan.js";
 
 const MOD = "servers";
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
 const EVERY = 5000;
-const HEAD = 41, GROUP = 28, ROW = 28, SHARE = 26, NOTE = 48, FOOT = 8, MAX = 300;
+const HEAD = 41, GROUP = 28, ROW = 28, SHARE = 26, NOTE = 48, FOOT = 8, MAX = 300, GRIP = 6, REACH = 4000;
 const OTHER = "other"; // the group of servers no space claims
 
 const DEMO = [
@@ -24,11 +25,14 @@ const DEMO = [
   { space: "b", label: "api", servers: [{ port: 8000, pid: 3, name: "api", tool: "uvicorn" }] },
 ];
 
-// This mod's layout block, and whether it is on screen (see the github mod).
+// This mod's layout block, whether it is on screen (see the github mod),
+// whether it ends a column (its top edge is then the one that moves) and the
+// block shown above it there.
 function block(node = layout(), path = []) {
   if (!node || typeof node !== "object") return null;
   const here = [...path, node];
-  if (node.content?.mod === MOD) return { id: node.id, px: node.size?.px ?? null, shown: !here.some((n, i) => n.hidden || (n.type === "stack" && here[i + 1] && n.active !== here[i + 1].id)) };
+  const col = path.at(-1)?.type === "column" ? path.at(-1).children.filter((c) => !c.hidden) : [];
+  if (node.content?.mod === MOD) return { id: node.id, px: node.size?.px ?? null, last: col.at(-1) === node, above: col[col.indexOf(node) - 1], shown: !here.some((n, i) => n.hidden || (n.type === "stack" && here[i + 1] && n.active !== here[i + 1].id)) };
   for (const child of node.children ?? []) {
     const found = block(child, here);
     if (found) return found;
@@ -89,6 +93,13 @@ export default class Servers extends View {
     this.missed = new Map();     // port -> reloads its server has been gone
     try { this.folded = new Set(JSON.parse(localStorage.getItem("folded") ?? "[]")); } catch { this.folded = new Set(); }
     if (this.demo) { this.folded = new Set(props().folded ?? []); return; }
+    try { [this.at, this.kept, this.from] = JSON.parse(localStorage.getItem("fit") ?? "[]"); } catch { /* fits anew */ }
+    // The grip is a slider: the only press a mod keeps hearing from once the
+    // pointer has left the element. Its value is the pointer's height over the
+    // block's bottom edge, in layout px whatever the zoom (0 under that edge).
+    this.grip = SliderState.new({ min: 0, max: REACH });
+    this.grip.on("change", (v) => this.pull(v));
+    this.grip.on("release", (_v, cx) => this.drop(cx));
     cx.timer.every(EVERY, (cx) => { if (!this.loading && (block()?.shown ?? true)) this.poll(cx); });
     this.poll(cx);
   }
@@ -222,12 +233,64 @@ export default class Servers extends View {
     });
   }
 
-  // The block takes the height of what it lists, unfolded (a personal layout only).
+  // The block takes the height of what it lists, unfolded (a personal layout
+  // only), until the person sets one: with the grip, or by dragging Herdr's
+  // own divider where one reaches this block (a height this mod didn't ask
+  // for). That height is kept whatever is listed, until a double-click on the
+  // grip or the heading. `at` is the height last asked for or seen (the first
+  // one seen, with nothing stored); `from` the one it replaced, which layout()
+  // can still show (always, in a shipped layout) until `at` is seen. Herdr
+  // keeps the height itself; every change of the three is stored as it
+  // happens, or a restart would misread a drag.
   fit(height) {
     const me = block(), px = Math.min(MAX, height);
-    if (!me?.id || me.px === px || this.sized === px) return;
-    this.sized = px;
+    if (!me?.id) return;
+    if (this.at == null || me.px === this.at) this.keep(me.px, this.kept === true, me.px);
+    else if (me.px != null && me.px !== this.from) this.keep(me.px, true, me.px);
+    if (this.kept || me.px === px || this.at === px) return;
+    this.keep(px, false, me.px);
     run("layout.resize", { id: me.id, px });
+  }
+
+  // The grip, pulled: the height at the press plus how far the pointer has
+  // gone since, as Herdr's own dividers do it. Nothing drawn after the press is
+  // read (it lags the pointer, and is in zoomed px), so a height asked for
+  // twice, or late, is still the right one. A px-sized block above gives or
+  // takes the same amount, down to its own heading, so its top edge stays
+  // where it is; a weighted one takes what is left by itself.
+  pull(v) {
+    const me = block(), up = me?.above;
+    if (!me?.id || me.px == null) return;
+    const d = this.drag ??= { v, px: me.px, to: me.px, up: up?.id ? up.size?.px ?? null : null };
+    const room = d.up == null ? Infinity : Math.max(0, d.up - Math.max(HEAD, up.min ?? 0));
+    const px = Math.max(HEAD, d.px + Math.min(room, v - d.v));
+    if (px === d.to) return;
+    d.to = px; d.moved = true;
+    this.keep(px, true, me.px);
+    if (d.up != null) run("layout.resize", { id: up.id, px: d.up - (px - d.px) });
+    run("layout.resize", { id: me.id, px });
+  }
+
+  // The grip, let go. Two presses that moved nothing are a double-click.
+  drop(cx) {
+    const d = this.drag, now = Date.now();
+    this.drag = null;
+    if (d?.moved) return;
+    if (now - this.tap < 400) this.auto(cx);
+    this.tap = now;
+  }
+
+  // Back to the height of what is listed.
+  auto(cx) {
+    const px = block()?.px ?? null;
+    this.keep(px, false, px);
+    cx.notify();
+  }
+
+  keep(at, kept, from) {
+    if (at === this.at && kept === this.kept && from === this.from) return;
+    this.at = at; this.kept = kept; this.from = from;
+    localStorage.setItem("fit", JSON.stringify([at, kept, from]));
   }
 
   note(title, body, t) {
@@ -296,7 +359,7 @@ export default class Servers extends View {
     const list = this.demo ? DEMO : this.servers ? groups(this.servers) : [];
     const count = list.reduce((n, g) => n + g.servers.length, 0);
     const shares = this.demo ? new Map() : this.shares();
-    const rows = [];
+    const rows = [], me = this.demo ? null : block();
     let height = HEAD + FOOT;
     // Folded server rows still count toward the height, so folding a space
     // doesn't resize the block and move the heading.
@@ -312,15 +375,25 @@ export default class Servers extends View {
         if (shared) add(open ? this.shareRow(s, s.link ?? this.urls.get(address) ?? null, t) : null, SHARE);
       }
     }
-    if (!this.demo) this.fit(height);
+    if (!this.demo && (this.servers || this.error)) this.fit(height); // not before the first list: it would shrink and regrow
 
-    return v_flex().size_full().min_h(0).bg(t.chrome).border_t(1).border_color(t.border).text_size(13).text_color(t.foreground)
+    return v_flex().relative().size_full().min_h(0).bg(t.chrome).border_t(1).border_color(t.border).text_size(13).text_color(t.foreground)
       .when(this.demo, (el) => el.w(268).h(height)) // the sidebar's width, for a picture
       .child(
-        h_flex().h(HEAD).pt(14).pb(5).px(16).flex_none().items_center().justify_between()
+        h_flex().id("head").h(HEAD).pt(14).pb(5).px(16).flex_none().items_center().justify_between()
+          .on_mouse_down("left", (e, cx) => { if (e.click_count === 2 && !this.demo) this.auto(cx); })
           .child(div().text_size(11.5).font_medium().text_color(t.dim).child("Servers"))
           .when(count > 0, (el) => el.child(div().text_size(11).text_color(this.error ? t.ansi1 : t.dim).child(String(count)))),
       )
-      .child(v_flex().id("list").flex_1().min_h(0).px(8).overflow_y_scrollbar().children(rows));
+      .child(v_flex().id("list").flex_1().min_h(0).px(8).overflow_y_scrollbar().children(rows))
+      // Last, so it is over the heading. The track is the grip; the indicator
+      // is the box the pointer is measured in, REACH up from the block's bottom
+      // edge: that edge stays put while the top one moves, so the box does too.
+      .when(me?.last, (el) => el.child(
+        Slider.new(this.grip).axis("vertical").absolute().inset_0()
+          .child(SliderTrack.new(this.grip).axis("vertical").absolute().top_0().left_0().right_0().h(GRIP).cursor_row_resize().hover((s) => s.bg(t.selected)))
+          .child(SliderIndicator.new(this.grip).axis("vertical").absolute().bottom_0().left_0().w_full().h(REACH)
+            .child(SliderThumb.new(this.grip).axis("vertical").size(0))),
+      ));
   }
 }
