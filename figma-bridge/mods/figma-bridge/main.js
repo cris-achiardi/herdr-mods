@@ -85,10 +85,12 @@ export default class FigmaBridge extends View {
     });
   }
 
-  // The block takes the height of what it lists, unfolded (a personal layout only).
+  // The block grows to the height of what it lists, unfolded, and never shrinks:
+  // it ends the sidebar's lists, so a shorter block starts lower and the
+  // section drops down the sidebar (a personal layout only).
   fit(height) {
     const me = block(), px = Math.min(MAX, height);
-    if (!me?.id || me.px === px || this.sized === px) return;
+    if (!me?.id || px <= (me.px ?? 0) || this.sized === px) return;
     this.sized = px;
     run("layout.resize", { id: me.id, px });
   }
