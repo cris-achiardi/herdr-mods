@@ -25,13 +25,14 @@ const DEMO = [
   { space: "b", label: "api", servers: [{ port: 8000, pid: 3, name: "api", tool: "uvicorn" }] },
 ];
 
-// This mod's layout block, whether it is on screen (see the github mod), and
-// whether it ends a column: its top edge is then the one that moves.
+// This mod's layout block, whether it is on screen (see the github mod),
+// whether it ends a column (its top edge is then the one that moves) and the
+// block shown above it there.
 function block(node = layout(), path = []) {
   if (!node || typeof node !== "object") return null;
   const here = [...path, node];
-  const up = path.at(-1);
-  if (node.content?.mod === MOD) return { id: node.id, px: node.size?.px ?? null, last: up?.type === "column" && up.children.findLast((c) => !c.hidden) === node, shown: !here.some((n, i) => n.hidden || (n.type === "stack" && here[i + 1] && n.active !== here[i + 1].id)) };
+  const col = path.at(-1)?.type === "column" ? path.at(-1).children.filter((c) => !c.hidden) : [];
+  if (node.content?.mod === MOD) return { id: node.id, px: node.size?.px ?? null, last: col.at(-1) === node, above: col[col.indexOf(node) - 1], shown: !here.some((n, i) => n.hidden || (n.type === "stack" && here[i + 1] && n.active !== here[i + 1].id)) };
   for (const child of node.children ?? []) {
     const found = block(child, here);
     if (found) return found;
@@ -254,15 +255,19 @@ export default class Servers extends View {
   // The grip, pulled: the height at the press plus how far the pointer has
   // gone since, as Herdr's own dividers do it. Nothing drawn after the press is
   // read (it lags the pointer, and is in zoomed px), so a height asked for
-  // twice, or late, is still the right one.
+  // twice, or late, is still the right one. A px-sized block above gives or
+  // takes the same amount, down to its own heading, so its top edge stays
+  // where it is; a weighted one takes what is left by itself.
   pull(v) {
-    const me = block();
+    const me = block(), up = me?.above;
     if (!me?.id || me.px == null) return;
-    const d = this.drag ??= { v, px: me.px, to: me.px };
-    const px = Math.max(HEAD, d.px + v - d.v);
+    const d = this.drag ??= { v, px: me.px, to: me.px, up: up?.id ? up.size?.px ?? null : null };
+    const room = d.up == null ? Infinity : Math.max(0, d.up - Math.max(HEAD, up.min ?? 0));
+    const px = Math.max(HEAD, d.px + Math.min(room, v - d.v));
     if (px === d.to) return;
     d.to = px; d.moved = true;
     this.keep(px, true, me.px);
+    if (d.up != null) run("layout.resize", { id: up.id, px: d.up - (px - d.px) });
     run("layout.resize", { id: me.id, px });
   }
 
