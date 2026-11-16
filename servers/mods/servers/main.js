@@ -17,7 +17,7 @@ import { scan, listeners, argv } from "./scan.js";
 const MOD = "servers";
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
 const EVERY = 5000;
-const HEAD = 41, GROUP = 28, ROW = 28, SHARE = 26, NOTE = 48, FOOT = 8, MAX = 300, GRIP = 6, REACH = 2000;
+const HEAD = 41, GROUP = 28, ROW = 28, SHARE = 26, NOTE = 48, FOOT = 8, MAX = 300, GRIP = 6, REACH = 4000;
 const OTHER = "other"; // the group of servers no space claims
 
 const DEMO = [
@@ -94,8 +94,9 @@ export default class Servers extends View {
     if (this.demo) { this.folded = new Set(props().folded ?? []); return; }
     try { [this.at, this.kept, this.from] = JSON.parse(localStorage.getItem("fit") ?? "[]"); } catch { /* fits anew */ }
     // The grip is a slider: the only press a mod keeps hearing from once the
-    // pointer has left the element. Its value is the pointer's height in px, 0 at rest.
-    this.grip = SliderState.new({ min: 0, max: 2 * REACH, value: 0 });
+    // pointer has left the element. Its value is the pointer's height over the
+    // block's bottom edge, in layout px whatever the zoom (0 under that edge).
+    this.grip = SliderState.new({ min: 0, max: REACH });
     this.grip.on("change", (v) => this.pull(v));
     this.grip.on("release", (_v, cx) => this.drop(cx));
     cx.timer.every(EVERY, (cx) => { if (!this.loading && (block()?.shown ?? true)) this.poll(cx); });
@@ -250,17 +251,17 @@ export default class Servers extends View {
     run("layout.resize", { id: me.id, px });
   }
 
-  // The grip, pulled. The slider's box hangs from the block's top edge, so the
-  // value's distance from the one at the press is how far the pointer is from
-  // where it should sit on the edge as last drawn: that much is added to the
-  // drawn height (`h`; `gap` is what the layout adds around the view).
+  // The grip, pulled: the height at the press plus how far the pointer has
+  // gone since, as Herdr's own dividers do it. Nothing drawn after the press is
+  // read (it lags the pointer, and is in zoomed px), so a height asked for
+  // twice, or late, is still the right one.
   pull(v) {
-    const me = block(), h = this.h ?? me?.px;
-    if (!v || !me?.id || h == null) return;
-    const d = this.drag ??= { v, gap: (me.px ?? h) - h };
-    const px = Math.max(HEAD, Math.round(h + d.gap + v - d.v));
-    if (px === this.at) return;
-    d.moved = true;
+    const me = block();
+    if (!me?.id || me.px == null) return;
+    const d = this.drag ??= { v, px: me.px, to: me.px };
+    const px = Math.max(HEAD, d.px + v - d.v);
+    if (px === d.to) return;
+    d.to = px; d.moved = true;
     this.keep(px, true, me.px);
     run("layout.resize", { id: me.id, px });
   }
@@ -269,7 +270,6 @@ export default class Servers extends View {
   drop(cx) {
     const d = this.drag, now = Date.now();
     this.drag = null;
-    this.grip.set_value(0); // so the next press always changes it
     if (d?.moved) return;
     if (now - this.tap < 400) this.auto(cx);
     this.tap = now;
@@ -372,9 +372,8 @@ export default class Servers extends View {
     }
     if (!this.demo && (this.servers || this.error)) this.fit(height); // not before the first list: it would shrink and regrow
 
-    return v_flex().id("servers").relative().size_full().min_h(0).bg(t.chrome).border_t(1).border_color(t.border).text_size(13).text_color(t.foreground)
+    return v_flex().relative().size_full().min_h(0).bg(t.chrome).border_t(1).border_color(t.border).text_size(13).text_color(t.foreground)
       .when(this.demo, (el) => el.w(268).h(height)) // the sidebar's width, for a picture
-      .on_size_change((size) => { this.h = size.height; })
       .child(
         h_flex().id("head").h(HEAD).pt(14).pb(5).px(16).flex_none().items_center().justify_between()
           .on_mouse_down("left", (e, cx) => { if (e.click_count === 2 && !this.demo) this.auto(cx); })
@@ -382,14 +381,14 @@ export default class Servers extends View {
           .when(count > 0, (el) => el.child(div().text_size(11).text_color(this.error ? t.ansi1 : t.dim).child(String(count)))),
       )
       .child(v_flex().id("list").flex_1().min_h(0).px(8).overflow_y_scrollbar().children(rows))
-      // Last, so it is over the heading. The indicator is the box the pointer
-      // is measured in: REACH above and below the edge, so neither way runs out.
+      // Last, so it is over the heading. The track is the grip; the indicator
+      // is the box the pointer is measured in, REACH up from the block's bottom
+      // edge: that edge stays put while the top one moves, so the box does too.
       .when(me?.last, (el) => el.child(
-        div().id("grip").absolute().top_0().left_0().right_0().h(GRIP).cursor_row_resize().hover((s) => s.bg(t.selected))
-          .child(Slider.new(this.grip).axis("vertical").size_full()
-            .child(SliderTrack.new(this.grip).axis("vertical").relative().size_full().cursor_row_resize()
-              .child(SliderIndicator.new(this.grip).axis("vertical").absolute().left_0().top(-REACH).w_full().h(2 * REACH)
-                .child(SliderThumb.new(this.grip).axis("vertical").size(0))))),
+        Slider.new(this.grip).axis("vertical").absolute().inset_0()
+          .child(SliderTrack.new(this.grip).axis("vertical").absolute().top_0().left_0().right_0().h(GRIP).cursor_row_resize().hover((s) => s.bg(t.selected)))
+          .child(SliderIndicator.new(this.grip).axis("vertical").absolute().bottom_0().left_0().w_full().h(REACH)
+            .child(SliderThumb.new(this.grip).axis("vertical").size(0))),
       ));
   }
 }
