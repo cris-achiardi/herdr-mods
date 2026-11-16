@@ -16,7 +16,7 @@ import { scan, listeners, argv } from "./scan.js";
 const MOD = "servers";
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
 const EVERY = 5000;
-const HEAD = 41, GROUP = 28, ROW = 28, SHARE = 26, NOTE = 48, FOOT = 8, MAX = 300;
+const HEAD = 41, GROUP = 28, ROW = 28, SHARE = 26, NOTE = 48, FOOT = 8, MAX = 300, SNAP = 8;
 const OTHER = "other"; // the group of servers no space claims
 
 const DEMO = [
@@ -89,6 +89,7 @@ export default class Servers extends View {
     this.missed = new Map();     // port -> reloads its server has been gone
     try { this.folded = new Set(JSON.parse(localStorage.getItem("folded") ?? "[]")); } catch { this.folded = new Set(); }
     if (this.demo) { this.folded = new Set(props().folded ?? []); return; }
+    try { [this.at, this.kept, this.from] = JSON.parse(localStorage.getItem("fit") ?? "[]"); } catch { /* fits anew */ }
     cx.timer.every(EVERY, (cx) => { if (!this.loading && (block()?.shown ?? true)) this.poll(cx); });
     this.poll(cx);
   }
@@ -222,12 +223,26 @@ export default class Servers extends View {
     });
   }
 
-  // The block takes the height of what it lists, unfolded (a personal layout only).
+  // The block takes the height of what it lists, unfolded (a personal layout
+  // only), until its edge is dragged: a height this mod didn't ask for is the
+  // person's, and is kept whatever is listed. Dragged back to within SNAP of
+  // the fitted height, the block fits itself again. `at` is the height last
+  // asked for or seen; `from` the one it replaced, which layout() can still
+  // show (always, in a shipped layout). Herdr keeps the height itself.
   fit(height) {
     const me = block(), px = Math.min(MAX, height);
-    if (!me?.id || me.px === px || this.sized === px) return;
-    this.sized = px;
+    if (!me?.id) return;
+    if (me.px === this.at) this.from = me.px;
+    else if (this.at != null && me.px != null && me.px !== this.from) this.keep(me.px, Math.abs(me.px - px) > SNAP);
+    if (this.kept || me.px === px || this.at === px) return;
+    this.from = me.px;
+    this.keep(px, false);
     run("layout.resize", { id: me.id, px });
+  }
+
+  keep(at, kept) {
+    this.at = at; this.kept = kept;
+    localStorage.setItem("fit", JSON.stringify([at, kept, this.from]));
   }
 
   note(title, body, t) {
@@ -312,7 +327,7 @@ export default class Servers extends View {
         if (shared) add(open ? this.shareRow(s, s.link ?? this.urls.get(address) ?? null, t) : null, SHARE);
       }
     }
-    if (!this.demo) this.fit(height);
+    if (!this.demo && (this.servers || this.error)) this.fit(height); // not before the first list: it would shrink and regrow
 
     return v_flex().size_full().min_h(0).bg(t.chrome).border_t(1).border_color(t.border).text_size(13).text_color(t.foreground)
       .when(this.demo, (el) => el.w(268).h(height)) // the sidebar's width, for a picture

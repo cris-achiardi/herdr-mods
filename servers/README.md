@@ -13,6 +13,7 @@ A sidebar section for the [Herdr](https://herdr.dev) desktop app that lists the 
 - **Share**: gives the server a temporary public address (`https://<random words>.trycloudflare.com`) through a Cloudflare quick tunnel and copies it. The address shows under the server; click it to copy it again, or its ✕ to stop sharing. **Anyone who has the link can see the server until you stop sharing**; there is no password.
 - **Open in browser**: opens `http://localhost:<port>`.
 - Click a server to go to its space.
+- **Its own height**: the section is as tall as its list. Drag its edge and it keeps the height you gave it, also after a restart; drag it back to about the list's height and it fits itself again.
 
 ## Requirements
 

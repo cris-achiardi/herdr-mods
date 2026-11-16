@@ -38,7 +38,8 @@ While a server is being stopped or restarted its row is `dim`, the dot is a 12px
 - Stop sharing (✕) ends that terminal. Stop on the server ends it too. Restart keeps it. A share whose port has had no listed server for three reloads in a row is ended.
 - Open opens `http://localhost:<port>` in the system browser.
 - It reloads every 5 s while its layout block is shown; a hidden block runs nothing.
-- The block resizes itself with `layout.resize` to the height of its content with every space unfolded, up to 300px, then scrolls. Folding a space leaves the block's size unchanged.
+- The block resizes itself with `layout.resize` to the height of its content with every space unfolded, up to 300px, then scrolls. Folding a space leaves the block's size unchanged. It does so once the first list has loaded, not before.
+- Dragging the block's edge to another height stops that: the block keeps the dragged height whatever is listed, scrolling when the rows don't fit, and across restarts (Herdr keeps the size in `layouts/.state/`; the mod keeps `fit` in `localStorage`: `[height it last asked for or saw, whether the person's height is kept, height before its last resize]`). Dragging the edge back to within 8px of the content's height makes the block fit itself again.
 - Agent statuses (working, blocked, done, idle) are not shown.
 
 ## Built from
@@ -82,6 +83,7 @@ Without a layout change: `herdr-app do pane.split '{"direction":"right","mod":"s
 - `scan.js` takes `exec` as an argument so it can be run outside Herdr with a `child_process` stand-in; keep it free of `herdr` imports.
 - The block is found by `content.mod === "servers"`; a renamed copy must update that constant.
 - `layout.resize` only works on a personal layout. In a shipped one the block keeps the size the layout gives it.
+- A drag is told from the mod's own resize by the block's `size.px` in `layout()`: it is a drag when it is neither the height the mod last asked for nor the one that was there before it asked (`layout()` can still show that one on the next render, and always does in a shipped layout). There is no resize event. A layout that stored another height than the one asked for (a clamp) would read as a drag.
 - Built and used on Windows (Spanish locale) with Herdr 0.1.15. The macOS and Linux branches are untested.
 
 ## Done when
