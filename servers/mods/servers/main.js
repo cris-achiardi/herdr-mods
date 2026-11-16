@@ -227,22 +227,24 @@ export default class Servers extends View {
   // only), until its edge is dragged: a height this mod didn't ask for is the
   // person's, and is kept whatever is listed. Dragged back to within SNAP of
   // the fitted height, the block fits itself again. `at` is the height last
-  // asked for or seen; `from` the one it replaced, which layout() can still
-  // show (always, in a shipped layout). Herdr keeps the height itself.
+  // asked for or seen (the first one seen, with nothing stored); `from` the
+  // one it replaced, which layout() can still show (always, in a shipped
+  // layout) until `at` is seen. Herdr keeps the height itself; every change
+  // of the three is stored as it happens, or a restart would misread a drag.
   fit(height) {
     const me = block(), px = Math.min(MAX, height);
     if (!me?.id) return;
-    if (me.px === this.at) this.from = me.px;
-    else if (this.at != null && me.px != null && me.px !== this.from) this.keep(me.px, Math.abs(me.px - px) > SNAP);
+    if (this.at == null || me.px === this.at) this.keep(me.px, this.kept === true, me.px);
+    else if (me.px != null && me.px !== this.from) this.keep(me.px, Math.abs(me.px - px) > SNAP, me.px);
     if (this.kept || me.px === px || this.at === px) return;
-    this.from = me.px;
-    this.keep(px, false);
+    this.keep(px, false, me.px);
     run("layout.resize", { id: me.id, px });
   }
 
-  keep(at, kept) {
-    this.at = at; this.kept = kept;
-    localStorage.setItem("fit", JSON.stringify([at, kept, this.from]));
+  keep(at, kept, from) {
+    if (at === this.at && kept === this.kept && from === this.from) return;
+    this.at = at; this.kept = kept; this.from = from;
+    localStorage.setItem("fit", JSON.stringify([at, kept, from]));
   }
 
   note(title, body, t) {
