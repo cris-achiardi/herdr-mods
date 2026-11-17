@@ -15,7 +15,7 @@ It is read-only. It never talks to Figma and never sends anything to the bridge 
 ## Requirements
 
 - figma-console-mcp in local (Desktop Bridge plugin) mode, 1.46 or a version with the same port files and `/health` endpoint.
-- Node.js on `PATH` (the bridge needs it too).
+- Node.js 14 or later on the `PATH` Herdr sees (the bridge needs it too). That can be a different, older Node than your terminal's.
 - Agent binding works for Claude Code sessions. Other agents' bridges count toward the light, but their files and activity are not shown.
 
 ## Install
@@ -36,7 +36,7 @@ Herdr's shipped layouts are read-only and restored on every start, so on a stock
 Every 3 seconds while the section is on screen, `node mods/figma-bridge/probe.cjs`, which:
 
 - reads the bridge's port files, `figma-console-mcp-<port>.json` in the system temp folder;
-- requests `http://localhost:<port>/health` from each bridge;
+- requests `/health` from each bridge, at `::1` and then `127.0.0.1`;
 - lists processes once per new bridge (`Get-CimInstance Win32_Process` on Windows, `ps` elsewhere) to find the terminal the bridge was started from;
 - reads `~/.claude/sessions/<pid>.json` and the appended part of that session's transcript under `~/.claude/projects/`, keeping only figma-console tool calls: tool name, time, file key, file name and page;
 - writes its own bookkeeping to `herdr-figma-bridge.json` in the system temp folder.

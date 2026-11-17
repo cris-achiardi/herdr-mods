@@ -5,7 +5,7 @@
 //
 // Sources, all local and read-only:
 //   <tmp>/figma-console-mcp-<port>.json   a running bridge: port, pid
-//   http://localhost:<port>/health        connectedClients: files connected to it
+//   http://[::1]:<port>/health            connectedClients: files connected to it
 //   the process table                     the bridge's ancestors (agent, shell)
 //   ~/.claude/sessions/<pid>.json         the Claude Code session of an ancestor
 //   ~/.claude/projects/*/<session>.jsonl  its figma-console tool calls and answers
@@ -16,6 +16,7 @@
 // <tmp>/herdr-figma-bridge.json, so a run reads only what was appended.
 
 const fs = require("fs");
+const http = require("http");
 const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
@@ -53,11 +54,24 @@ function ancestorsOf(pid, table) {
   return chain;
 }
 
+// The bridge's /health over plain http, not fetch (Node 18+): Herdr's node can
+// be older than the terminal's. IPv6 first, where the bridge listens; Node < 17
+// resolves localhost to IPv4 first, and another bridge may hold the same port there.
+function healthAt(host, port) {
+  return new Promise((resolve) => {
+    const req = http.get({ host, port, path: "/health", timeout: 1500 }, (r) => {
+      let body = "";
+      r.setEncoding("utf8");
+      r.on("data", (c) => { body += c; });
+      r.on("end", () => { try { resolve(r.statusCode === 200 ? JSON.parse(body) : null); } catch { resolve(null); } });
+    });
+    req.on("timeout", () => req.destroy());
+    req.on("error", () => resolve(null));
+  });
+}
+
 async function health(port) {
-  try {
-    const r = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(1500) });
-    return r.ok ? await r.json() : null;
-  } catch { return null; }
+  return (await healthAt("::1", port)) ?? (await healthAt("127.0.0.1", port));
 }
 
 function transcriptOf(session) {
@@ -134,7 +148,7 @@ function scan(file, seen) {
   let table = null;
   const bridges = await Promise.all(ads.map(async (ad) => {
     const id = `${ad.pid}:${ad.startedAt}`;
-    if (!procs[id]) { table ??= parents(); procs[id] = ancestorsOf(ad.pid, table); }
+    if (!procs[id]) { if (!table) table = parents(); procs[id] = ancestorsOf(ad.pid, table); }
     const h = await health(ad.port);
     return { port: ad.port, pid: ad.pid, up: Boolean(h), version: h?.version ?? null, connected: h?.connectedClients ?? 0, ancestors: procs[id] };
   }));
@@ -147,7 +161,7 @@ function scan(file, seen) {
     const info = pid ? readJson(path.join(CLAUDE, "sessions", `${pid}.json`)) : null;
     b.session = info?.sessionId ?? null;
     if (!info?.sessionId || sessions.has(info.sessionId)) continue;
-    const seen = (scans[info.sessionId] ??= { file: null, offset: 0, pending: {}, files: {}, last: null, active: null, listed: null });
+    const seen = scans[info.sessionId] || (scans[info.sessionId] = { file: null, offset: 0, pending: {}, files: {}, last: null, active: null, listed: null });
     const file = transcriptOf(info);
     if (file) scan(file, seen);
     for (const [id, call] of Object.entries(seen.pending)) if (now - call.at > PENDING_MAX) delete seen.pending[id];
