@@ -38,7 +38,7 @@ Large diffs are a known cost: in the source session, eight issues produced +12.9
 - The branch is rebased on current main, and the rebase itself has been re-verified.
 - The PR body has Testing (with fail-on-base counts) and Not covered sections.
 - For visual or front-end changes: before/after screenshots are posted on the PR, and the reviewer evaluated them (`references/evidence.md`).
-- In pair mode: the review rounds are on the PR as comments, and a cross-track check was done (`references/pairs.md`).
+- In pair mode: the review rounds are on the PR as comments, and the overseer answered `MERGE CHECK #N <sha>: clear` for this head. Without an overseer, the orchestrator does that cross-track check itself (`references/pairs.md`).
 - The closing keywords cover every issue (`Fixes #a, fixes #b`).
 
 After merging:

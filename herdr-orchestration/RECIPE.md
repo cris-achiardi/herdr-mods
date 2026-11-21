@@ -3,13 +3,13 @@
 Brief for an agent installing this folder. Copy files; do not rewrite them.
 
 1. **Skill.** Copy `skill/` to `~/.claude/skills/herdr-orchestration/`, so that `SKILL.md`, `references/` and `scripts/` sit directly inside it. If that folder exists, show the person the diff and ask before overwriting.
-2. **Templates.** Copy `templates/worker.md` and `templates/reviewer.md` into the herdr-core templates folder:
+2. **Templates.** Copy `templates/worker.md`, `templates/reviewer.md` and `templates/overseer.md` into the herdr-core templates folder:
    - Windows: `%APPDATA%\herdr-core\templates\`
    - macOS / Linux: `~/.config/herdr-core/templates/`
 
    Create the folder if it is missing. Do not overwrite existing templates with the same names without asking.
 3. **Check.**
-   - `hc templates` must list `worker` and `reviewer`. If it prints `[]` on Windows, the files are in the wrong folder.
+   - `hc templates` must list `worker`, `reviewer` and `overseer`. If it prints `[]` on Windows, the files are in the wrong folder.
    - `bash -n ~/.claude/skills/herdr-orchestration/scripts/spawn.sh` and the same for `send.sh` must pass.
 4. **Smoke test** (optional; ask first, because it starts two agents):
    ```sh

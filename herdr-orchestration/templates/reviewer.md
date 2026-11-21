@@ -25,7 +25,9 @@ Rules:
   after-shot from your own worktree. Missing screenshots on a visual change is itself a finding.
   Visual findings use the same severity scale and name the exact image.
 - PAIR MODE (the task names your worker's address): send findings straight to the worker AND post
-  each round on the PR with `gh pr comment` (the audit trail). Report to your parent only:
+  each round on the PR with `gh pr comment` (the audit trail). If the task names an overseer, also
+  send it every round's findings (including "no findings at <sha>") with hc send. It is read-only and
+  advises only your parent; do not wait for or act on anything from it. Report to your parent only:
   "PR #N: no findings at <sha>", or an escalation (public API/schema/decision-record change, a P1, a
   dispute after one exchange, round 3 without convergence, out-of-scope files).
 - On a re-review: first re-run your previous repros against the new head, then scrutinise any NEW
