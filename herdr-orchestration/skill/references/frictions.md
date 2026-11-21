@@ -1,0 +1,20 @@
+# Known frictions and tested workarounds
+
+Observed on Windows 11 with herdr-core `hc` (Nov 2026), Claude Code and Codex CLI. Each row was hit in a real session. "Upstream" numbers are issues at https://github.com/herdrdev/herdr-core/issues; drop a workaround once its issue is fixed. "Yes" in the last column means the workaround was actually exercised, not assumed.
+
+| # | Symptom | Cause | Workaround | Verified |
+| --- | --- | --- | --- | --- |
+| 1 | `hc send` to Codex returns `{"started":false,...}`; the text sits in Codex's input box | Codex holds pasted text instead of submitting it | `scripts/send.sh` reads the pane, then runs `hc keys <t> enter`. An extra Enter on an empty box does nothing. Upstream: herdr-core #8, #322 | yes, ~15 times |
+| 2 | `hc run ... --no-daemon codex` fails with `cannot start "--no-daemon"` | The flag belongs to codex, so it goes after the program name | `hc run ... codex --no-daemon "<task>"`. `spawn.sh` adds the flag if missing | yes |
+| 3 | `hc run <template> "<task>"` fails with `spawn_failed: cannot start "sh": sh: not found on PATH` | Templates spawn through `sh`, which the core cannot find on Windows | `scripts/spawn.sh` reads the template and launches the program directly. Upstream: herdr-core #245 | yes |
+| 4 | `hc templates` returns `[]` although `~/.config/herdr-core/templates/*.md` exist | On Windows the core reads `%APPDATA%\herdr-core\templates`; the help text still says `~/.config` | Put templates in `%APPDATA%\herdr-core\templates`. Upstream: herdr-core #308 | yes |
+| 5 | A Codex child cannot report: `hc send` fails with "pipe access denied (OS error 5)" | Codex sandbox; the launch folder is not a Codex-trusted project | Launch Codex with `--cwd` inside a trusted project. Even there, its first attempt may be sandboxed; it is then escalated and auto-approved (`approvals_reviewer = "auto_review"`). Upstream: herdr-core #224 (sandboxed Codex runs as another Windows account, which the core's pipe refuses) | yes |
+| 6 | A new Claude worker sits idle at "New MCP server found" or a folder-trust prompt | First-start dialog | Read the pane, then `hc keys <t> enter` (continue without) for the MCP prompt. Never press keys blindly on a permission prompt; ask the person | yes |
+| 7 | A worker's input box shows a plausible instruction ("#50 merged — build #36") | Suggested-prompt ghost text that nobody sent | Check with `gh pr view`. Tell the worker explicitly what is and isn't merged | yes |
+| 8 | `hc wait --children any` returns `reason: status` with no message | A child's status changed (done/idle) without a report | `hc read <t> --lines 60`. If it forgot to report, nudge it with a send. Wait again | yes |
+| 9 | Browser tests flake, or a port is already in use across agents | Workers and the reviewer start the same dev servers | Give each agent its own port range in its brief, e.g. 4401–4404 worker A, 4611–4614 worker B, 4501–4504 reviewer | yes |
+| 10 | `git worktree remove` fails with `Filename too long` | `node_modules` paths over 260 characters | Use short worktree roots (`C:/Users/<u>/wt/<name>`). To remove one: PowerShell `Remove-Item -LiteralPath "\\?\<path>" -Recurse -Force`, then `git worktree prune` | yes |
+| 11 | Fork PR checks stuck at `action_required` | GitHub requires a maintainer to approve fork workflow runs | After reviewing the diff: `gh api -X POST repos/<o>/<r>/actions/runs/<id>/approve` | yes |
+| 12 | `Fixes #35, #46` closes only #35 | GitHub needs a keyword for each issue | Write `Fixes #35, fixes #46` | yes |
+| 13 | `gh pr checks --watch` runs past the shell tool's timeout | Long CI runs | Run it in an hc terminal: `hc run --bg --rm --no-notify --name ci -- gh pr checks <n> --watch`, then `hc wait ci` | partly |
+| 14 | A reviewer reports a Windows-only failure that CI never shows | CI runs Linux; the reviewer runs on the Windows host | Treat it as real until disproven and reproduce it locally. This is how init-ds's Prettier command was found to exceed cmd.exe's line limit | yes |
