@@ -52,7 +52,7 @@ bash $S/send.sh review "PR #53 is ready for review: ..."   # send + make sure th
    Workers never merge.
 4. **Review loop.** Pick a mode per session:
    - **Hub mode** (`references/review-loop.md`): one persistent reviewer, and you relay every finding. Best when tracks overlap heavily or most findings need design calls.
-   - **Pair mode** (`references/pairs.md`): one worker + reviewer pair per track, talking directly. They escalate only design-level issues, P1s, disputes, or round 3. Best for several independent tracks; it removes you from the relay path.
+   - **Pair mode** (`references/pairs.md`): one worker + reviewer pair per track, talking directly. They escalate only design-level issues, P1s, disputes, or round 3. Best for several independent tracks; it removes you from the relay path. With two or more pairs, add a read-only **overseer**: it receives every reviewer's notes, spots patterns across tracks, advises only you, and does the cross-track check before each merge.
    - Either way, re-reviews are targeted: re-run the old repros first, then examine any new mechanism.
    - **Visual or front-end changes:** before/after screenshots posted on the PR, and a visual evaluation by the reviewer, on top of the code checks (`references/evidence.md`).
 5. **Merge** only when all three hold: the reviewer said "no findings" on the current head SHA, CI is green, and the branch is rebased on current main. Then:
