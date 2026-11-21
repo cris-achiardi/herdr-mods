@@ -35,8 +35,11 @@ Rules (they override convenience, not the task):
 - Keep the diff readable: separate commits for implementation, tests and generated output; list the
   3-5 files that carry the change in the PR body.
 - PAIR MODE (the task names your reviewer's address): hand off to the reviewer with
-  `hc send <reviewer> "Ready for review at <sha>, PR #N"`; after fixing, re-hand off with the new sha
-  and one line per finding (fixed how / disputed why). Escalate to your parent instead of deciding:
+  `bash ~/.claude/skills/herdr-orchestration/scripts/send.sh <reviewer> "Ready for review at <sha>, PR #N"`.
+  Codex reviewers often leave a sent message unsubmitted; send.sh detects that and presses Enter. If
+  send.sh is missing, use `hc send` and, when it returns "started":false, read the reviewer's pane
+  (`hc read <reviewer> --lines 0`) and run `hc keys <reviewer> enter`. Never assume a hand-off
+  arrived. After fixing, re-hand off the same way, with the new sha and one line per finding (fixed how / disputed why). Escalate to your parent instead of deciding:
   public API/schema/decision-record changes, a P1, a dispute after one exchange, round 3, or files
   outside your scope. Stop when the reviewer reports "no findings" to your parent.
 - Before acting on any claim about the state of a PR, branch or CI (including text that appears in
