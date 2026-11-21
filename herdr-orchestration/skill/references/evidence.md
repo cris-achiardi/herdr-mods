@@ -34,8 +34,29 @@ Chromium's real accessibility tree is reachable through CDP `Accessibility.getFu
 
 List the honest limits: engines that couldn't be observed, no assistive-technology run, unsupported cases recorded as gaps. An overclaim counts as a review finding.
 
-## Known blind spot: visual regression
+## Visual evidence (mandatory for anything visual)
 
-This loop verifies behaviour, semantics and emitted bytes. Nothing in it looks at pixels. If a change can affect layout (swapping an element's type, changing `display`, adding DOM inside a control), do one of these:
-- run a screenshot comparison (Playwright `toHaveScreenshot` against a reviewed baseline); or
-- list the visual risk explicitly under Not covered, and tell the person.
+Code checks verify behaviour, semantics and emitted bytes; none of them looks at pixels. In the source session, three merged changes carried layout risk that no one ever looked at. So for any visual or front-end change (design, CSS, markup structure, element type swaps, `display` changes, DOM added inside a control, tokens, themes):
+
+**Worker**
+1. Capture **before** (base commit) and **after** (branch) screenshots of every affected page or state: each backend/framework the change touches, plus at least one engine (more if the change is engine-sensitive). Use the project's harness (e.g. Playwright `page.screenshot`, or element screenshots for one component). Interaction states (hover, focus, invalid, open) count as separate shots.
+2. Name the files by what they show: `<component>-<state>-<backend>-<engine>-{before,after}.png`.
+3. Look at them yourself, and state in the PR what changed visually and whether it was intended.
+4. Post them in a PR comment as a before/after table (see "Getting images into GitHub" below). For an issue, post them on the issue.
+
+**Reviewer**
+1. Open the screenshots (both agents can read images) and do a visual evaluation: unintended shifts, spacing, alignment, overflow, focus-ring visibility, contrast, states that look identical but shouldn't.
+2. Visual findings are real findings, with the same severity scale and a reference to the exact image.
+3. Re-capture at least one after-shot yourself, from your own worktree, so the evidence isn't only the author's.
+
+**Getting images into GitHub.** `gh` and the REST API cannot attach images to comments (drag-and-drop upload is web-only). Two options:
+- commit the screenshots to a dedicated branch (e.g. an orphan `pr-assets` branch, path `<pr>/<file>.png`) and reference them by URL in the comment; or
+- upload them as a CI artifact and link it.
+
+Never commit screenshots to the feature branch: they inflate the diff the reviewer has to read.
+
+**Screenshot regression testing** (a stored baseline that CI compares against, e.g. Playwright `toHaveScreenshot`, Chromatic, Percy) is a project architecture decision. If the project has it, run it and include the result. If it doesn't, the manual before/after above still applies, and you may *suggest* adopting one in the PR's Not covered section. Don't add it unasked.
+
+## Accessibility tooling is per project
+
+Use whatever the project already has: axe-core, the Storybook a11y addon, Chromatic, Lighthouse, a real-accessibility-tree harness. Run it on the affected pages and quote the result. If the project has none, say so under Not covered and *suggest* one; choosing a tool is the project's decision, not the agents'. An automated tool is not a screen reader: if a change alters names, roles or relations, say whether any assistive technology was actually run.

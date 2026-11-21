@@ -15,7 +15,8 @@ This is not a UI mod: it adds no panel. It is the working method and the tooling
   - `frictions.md`: 14 problems hit in real use (hc, Codex, Claude, Windows, GitHub), each with a tested workaround and, where one exists, the upstream herdr-core issue.
   - `briefs.md`: example messages for "design only", "go ahead", relaying review findings, re-review requests, and "this merged".
   - `review-loop.md`: severity levels, targeted re-reviews, and the merge checklist.
-  - `evidence.md`: proving tests fail on the old code, measurement standards, and the visual-regression blind spot.
+  - `pairs.md`: pair mode, where each track gets a worker + reviewer pair that talks directly and escalates only design-level issues, P1s, disputes or round 3.
+  - `evidence.md`: proving tests fail on the old code, measurement standards, mandatory before/after screenshots and visual review for front-end changes, and per-project accessibility tooling.
 - **Two role templates** (`templates/worker.md`, `templates/reviewer.md`). These are herdr-core templates: the standing rules for each role, written once instead of retyped into every brief.
 - **Two scripts** (`skill/scripts/`):
   - `spawn.sh <role> <name> <cwd> <task>` starts an agent from a template, in a pane of the caller's tab, with the rules and the parent's address attached.

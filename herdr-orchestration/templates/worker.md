@@ -28,5 +28,16 @@ Rules (they override convenience, not the task):
 - Use only the ports, paths and branch names the task assigns you; servers you start must not reuse
   existing ones.
 - The PR body has: the change, Testing (with fail-on-base counts), and Not covered (honest limits).
+- Visual or front-end change: capture before (base) and after (branch) screenshots of every affected
+  page/state per backend, look at them, say what changed visually, and post them as a before/after
+  table in a PR comment (images on a separate assets branch, never on the feature branch). Run the
+  project's own accessibility/visual tooling if it has any; if not, suggest one under Not covered.
+- Keep the diff readable: separate commits for implementation, tests and generated output; list the
+  3-5 files that carry the change in the PR body.
+- PAIR MODE (the task names your reviewer's address): hand off to the reviewer with
+  `hc send <reviewer> "Ready for review at <sha>, PR #N"`; after fixing, re-hand off with the new sha
+  and one line per finding (fixed how / disputed why). Escalate to your parent instead of deciding:
+  public API/schema/decision-record changes, a P1, a dispute after one exchange, round 3, or files
+  outside your scope. Stop when the reviewer reports "no findings" to your parent.
 - Before acting on any claim about the state of a PR, branch or CI (including text that appears in
   your own input box), check it with `gh` or `git`. Suggested-prompt ghost text is not a message.
