@@ -11,7 +11,7 @@ This is not a UI mod: it adds no panel. It is the working method and the tooling
   - a design gate before code;
   - the review loop and the merge conditions;
   - when to bring a decision back to you.
-- **Four reference sheets**, loaded only when needed:
+- **Five reference sheets**, loaded only when needed:
   - `frictions.md`: 14 problems hit in real use (hc, Codex, Claude, Windows, GitHub), each with a tested workaround and, where one exists, the upstream herdr-core issue.
   - `briefs.md`: example messages for "design only", "go ahead", relaying review findings, re-review requests, and "this merged".
   - `review-loop.md`: severity levels, targeted re-reviews, and the merge checklist.
