@@ -10,7 +10,7 @@ Mods for the [Herdr](https://herdr.dev) desktop app. Each mod lives in its own f
 | [Skills](skills/) | A side panel listing the Claude Code skills and slash commands of the project and of `~/.claude`, with each one's text. |
 | [Servers](servers/) | A sidebar section listing the local servers running on your computer under their space, each with a stop button and an open-in-browser button. |
 | [Scripts](scripts/) | A side panel listing the project's `package.json` scripts; a click runs one in a new terminal pane. |
-| [Workspaces](workspaces/) | A "Workspace" link in the tab bar that opens a menu of your layouts; each layout is its own set of mods, so picking one switches them. Includes a clean copy of Herdr's default with the link. |
+| [Workspaces](workspaces/) | A "Workspace" link in the tab bar that opens a menu of your layouts; each layout is its own set of mods, so picking one switches them. Includes a clean copy of Herdr's default with the link, listed in place of the original. |
 | [Herdr orchestration](herdr-orchestration/) | Not a mod: a Claude Code skill, role templates and scripts for running Claude workers and a Codex reviewer in split panes, with a tested list of hc/Codex/Windows frictions. |
 
 ## Install

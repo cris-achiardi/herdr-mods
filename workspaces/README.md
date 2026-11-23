@@ -7,11 +7,11 @@ A "Workspace" link in the tab bar that opens a small menu of your layouts, like 
 ## What it does
 
 - **Workspace** sits in the tab bar just before the `+` button, as plain text, apart from the panel buttons.
-- Clicking it opens a menu at the pointer listing every layout in `~/.config/herdr-app/layouts/`, the shown one ticked. Herdr's demo layouts (Terminals, Herdr 98) are left out. `main` reads "Herdr default"; `clean` reads "Herdr clean".
+- Clicking it opens a menu at the pointer listing every layout in `~/.config/herdr-app/layouts/`, the shown one ticked. Herdr's own layouts are left out: its default (`main`), because it has no link to come back with, and the demos Terminals and Herdr 98. `clean` reads "Herdr clean".
 - Click a row, or use ↑/↓ and Enter, to switch. Esc closes it.
 - Nothing is uninstalled or reinstalled: mods a layout doesn't place simply aren't shown.
 
-**Herdr clean.** Herdr's own layout and tab bar are read-only, so the link can't be added to them. The recipe makes `clean`, a copy of Herdr's default layout whose tab bar (`tabs-workspace`, a copy of Herdr's `tabs`) has the link. It looks like Herdr's default plus that one link, so you can show stock Herdr and still switch back with a click.
+**Herdr clean.** Herdr's own layout and tab bar are read-only, so the link can't be added to them. The recipe makes `clean`, a copy of Herdr's default layout whose tab bar (`tabs-workspace`, a copy of Herdr's `tabs`) has the link. It looks like Herdr's default plus that one link, so you can show stock Herdr and still switch back with a click. It replaces Herdr's default in the menu.
 
 ## Install
 
@@ -31,6 +31,6 @@ It follows [RECIPE.md](RECIPE.md). Installation has two parts:
 ## Limits
 
 - Herdr's shipped `main` layout has no link. From it, switch back with **Ctrl+Shift+L** (next layout) or `herdr-app do layout.switch '{"name":"<layout>"}'`.
-- The hidden names (`terminals`, `win98`) are fixed in `main.js` and repeated in the tab bar's height calculation.
+- The hidden names (`main`, `terminals`, `win98`) are fixed in `main.js` and repeated in the tab bar's height calculation.
 - A layout switch closes open overlay windows.
 - Built and used on Windows with Herdr 0.1.15. Untested on macOS and Linux.

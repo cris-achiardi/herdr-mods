@@ -7,9 +7,10 @@ import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { run, props, closeOverlay, theme, layouts, shared } from "herdr";
 
-// Herdr's shipped demo layouts. "main" stays: it is Herdr's default screen.
-const HIDDEN = new Set(["terminals", "win98"]);
-const LABELS = { main: "Herdr default", clean: "Herdr clean" };
+// Herdr's shipped layouts: "main" has no Workspace link to come back with
+// ("clean" is its copy that does), the others are demos.
+const HIDDEN = new Set(["main", "terminals", "win98"]);
+const LABELS = { clean: "Herdr clean" };
 
 // Rows are ROW px and the list has PAD px around it: the opener sizes the popup
 // as 2 * PAD + rows * ROW, since a mod can't import another mod's code.

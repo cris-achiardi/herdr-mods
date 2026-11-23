@@ -10,7 +10,7 @@ A layout picker: a "Workspace" text link in the tab bar opens a popup listing th
 
 **The menu**: a popup at the pointer, 220px wide, on `popover`, 5px padding, text 12.8px. One 31px row per layout (8px side padding, radius 7): the label, truncated, in `foreground` for the shown layout and `muted` for the others; the shown layout also gets a 14px `accent` check (`mods/workspace-chrome/check.svg`) at the right. The highlighted row is `selected`, hovered rows `hover`. With no layouts to list, one `dim` row reads "No layouts".
 
-Rows are `layouts()` in its order (main first), minus `terminals` and `win98` (Herdr's demo layouts). Labels: `main` → "Herdr default", `clean` → "Herdr clean", any other layout by its file name.
+Rows are `layouts()` in its order, minus Herdr's shipped layouts: `main` (it can't carry the link, so switching to it would leave the person without a way back; `clean` is its copy that can) and the demos `terminals` and `win98`. Labels: `clean` → "Herdr clean", any other layout by its file name.
 
 ## How it behaves
 
@@ -33,7 +33,7 @@ In a tab bar mod based on Herdr's `tabs` (0.1.15), import `layouts` from `"herdr
 .child(h_flex().id("workspace").h(26).px(8).flex_none().items_center().rounded(6).text_size(12).text_color(t.muted)
   .hover(s => s.bg(t.hover).text_color(t.foreground)).on_mouse_down("left", stop)
   .on_click(() => openOverlay({ mod: "workspaces", kind: "popup", width: 220,
-    height: 10 + 31 * Math.max(1, layouts().filter(n => n !== "terminals" && n !== "win98").length) }))
+    height: 10 + 31 * Math.max(1, layouts().filter(n => !["main", "terminals", "win98"].includes(n)).length) }))
   .child("Workspace"))
 ```
 
@@ -52,7 +52,7 @@ Add the link to `mods/tabs-workspace/main.js` as above, then in `layouts/clean.j
 
 - Copying the folder alone shows nothing. The install is not done until clicking Workspace in the person's tab bar opens the menu.
 - Herdr's shipped `main` can't carry the link; from it, Ctrl+Shift+L (`layout.switch` with no name) steps to the next layout.
-- The hidden names live in two places, this mod and the opener's height; change both together.
+- The hidden names (`main`, `terminals`, `win98`) live in two places, this mod and the opener's height; change both together.
 - `layout.clone` switches the window to the clone. Put the person back on their layout afterwards.
 - `herdr-app check` loads the mod with no props; it passes with or without a tab bar wired. To see the menu without the link: `herdr-app do mod.open '{"name":"workspaces"}'`.
 - Built and used on Windows with Herdr 0.1.15. Untested on macOS and Linux.
@@ -60,6 +60,6 @@ Add the link to `mods/tabs-workspace/main.js` as above, then in `layouts/clean.j
 ## Done when
 
 - `herdr-app check` passes for `mods/workspaces` and for each tab bar mod that was edited; `herdr-app status` shows no errors.
-- Clicking Workspace opens the menu listing the person's layouts without Terminals and Herdr 98, the shown one ticked.
+- Clicking Workspace opens the menu listing the person's layouts without Herdr's main, Terminals and Herdr 98, the shown one ticked.
 - Choosing another layout switches the window to it; `herdr-app status` reports that layout.
 - If `clean` was made, it looks like Herdr's default plus the Workspace link, and the link switches back.
