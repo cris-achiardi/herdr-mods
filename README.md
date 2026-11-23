@@ -22,6 +22,19 @@ Ask your Herdr agent, with the folder of the mod you want:
 
 Each mod's README says what it runs and what it needs wired up after copying.
 
+## Contributing
+
+These mods are maintained by Cristian Morales, but suggestions and improvements are welcome.
+
+**Reporting issues.** Found a bug, or a mod that breaks on your Herdr version or platform? [Open an issue](https://github.com/cris-achiardi/herdr-mods/issues) with the mod's name, your Herdr version (`herdr-app --version`) and what `herdr-app status` reports.
+
+**Proposing improvements.** To change a mod:
+
+1. Fork the repository.
+2. Make your change in the mod's folder, and update its `README.md` and `RECIPE.md` to match.
+3. Run `herdr-app check` on the mod and try it in the app.
+4. Open a pull request saying what changed and how you checked it.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
