@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma row and fold tests; loader accepts CRLF. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma row and fold tests; agent menu tests; loader accepts CRLF. See NOTICE.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -23,6 +23,7 @@ function harness(view) {
         return (...args) => {
           if (key === "id") target.id = args[0];
           if (key === "on_click") target.handlers.click = args[0];
+          if (key === "on_mouse_down") target.handlers[`down-${args[0]}`] = args[1];
           return proxy;
         };
       },
@@ -146,6 +147,9 @@ function agents(sort) {
   };
   return { h, mod };
 }
+
+// Objects made inside the sandbox, as this realm's.
+const plain = (v) => JSON.parse(JSON.stringify(v));
 
 // Headers and agents in the order drawn.
 const rows = (tree) => find(tree, "ag-list").nodes.map((n) => n.id);
@@ -464,6 +468,41 @@ test("sidebar-plus: an agent with only Figma files can fold them, and folded cou
 test("sidebar-plus: the agents view tells figma-bridge it listens", () => {
   const { h } = agents("grouped");
   assert.equal(typeof h.live.shared["figma.listen"], "number");
+});
+
+test("sidebar-plus: right-clicking an agent opens its menu at the pointer, without the list's own", () => {
+  const { h, mod } = agents("priority");
+  const row = find(mod.render(cx), "ag-t2");
+  let stopped = false;
+  row.handlers["down-right"]({}, { ...cx, stop_propagation: () => (stopped = true) });
+  assert.ok(stopped);
+  assert.deepEqual(plain(h.overlays.at(-1)), {
+    mod: "sidebar-plus",
+    kind: "popup",
+    at: "pointer",
+    width: 180,
+    height: 82,
+    props: { view: "agent-menu", terminal: "t2", tab: "b", pane: "p-t2" },
+  });
+});
+
+test("sidebar-plus: the agent menu stops the agent and renames its tab", () => {
+  const h = harness("agent-menu");
+  h.context.props = () => ({ view: "agent-menu", terminal: "t2", tab: "b", pane: "p-t2" });
+  const menu = load(h, "views/agent-menu.js", "AgentMenu");
+  menu.init({}, { ...cx, focus_handle: () => ({ focus() {} }) });
+  const items = find(menu.render(cx), "agent-menu").nodes;
+  assert.deepEqual(items.map(strings).map((s) => s.trim()), ["Stop", "Rename"]);
+  items[0].handlers.click();
+  assert.deepEqual(plain(h.commands.at(-1)), { name: "terminal.kill", args: { terminal: "t2" } });
+  items[1].handlers.click();
+  assert.deepEqual(plain(h.commands.slice(-2)), [
+    { name: "pane.focus", args: { pane: "p-t2" } },
+    { name: "tab.rename", args: { id: "b" } },
+  ]);
+  h.context.props = () => ({ view: "agent-menu", terminal: "t9", tab: null, pane: null });
+  const solo = find(menu.render(cx), "agent-menu").nodes;
+  assert.deepEqual(solo.map(strings).map((s) => s.trim()), ["Stop"], "no tab, nothing to rename");
 });
 
 test("the pin button asks the core to pin the agent", () => {

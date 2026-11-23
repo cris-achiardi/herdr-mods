@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma files from figma-bridge under agents; an agent folds whatever hangs under it. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma files from figma-bridge under agents; an agent folds whatever hangs under it; right-click an agent for Stop and Rename. See NOTICE.
 // Adapted from Herdr's shipped agents mod, with grouping by main space and by
 // name prefix. Agents in grouped or priority views; parents take their most urgent sub-agent's place.
 
@@ -17,6 +17,7 @@ import {
   setAgentOrder,
   window,
   layout,
+  openOverlay,
 } from "herdr";
 import { findNode } from "./find-node.js";
 import { loadSettings } from "../settings.js";
@@ -417,6 +418,10 @@ export class Agents {
           ? run("pane.focus", { terminal: k.address })
           : this.peek(k.address),
       )
+      .on_mouse_down("right", (_e, cx) => {
+        cx.stop_propagation();
+        this.menu(agents().find((x) => x.address === k.address) ?? { address: k.address });
+      })
       .children(
         s.lines.map((l) =>
           div()
@@ -739,6 +744,10 @@ export class Agents {
         cx.notify();
       })
       .on_click(() => run("pane.focus", { pane: a.pane }))
+      .on_mouse_down("right", (_e, cx) => {
+        cx.stop_propagation();
+        this.menu(a);
+      })
       .when(Boolean(pic), (el) => el.child(this.agentIcon(a, pic, subs)))
       .child(this.agentName(a, view, t))
       .when(Boolean(machine), (el) =>
@@ -879,6 +888,19 @@ export class Agents {
       })
       .child(Icon(`chevron-${open ? "down" : "right"}`, 11))
       .when(!open, (el) => el.child(String(count)));
+  }
+
+  // sidebar-plus: an agent's right-click menu (views/agent-menu.js), at the pointer.
+  // A sub-agent without a pane has no tab to rename, so its menu offers Stop alone.
+  menu(a) {
+    openOverlay({
+      mod: "sidebar-plus",
+      kind: "popup",
+      at: "pointer",
+      width: 180,
+      height: 82,
+      props: { view: "agent-menu", terminal: a.address, tab: a.tab ?? null, pane: a.pane ?? null },
+    });
   }
 
   pinButton(a, t) {
