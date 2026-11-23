@@ -17,7 +17,7 @@
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Slider, SliderTrack, SliderIndicator, SliderThumb, SliderState } from "gpui-base";
-import { spaces, panes, terminals, exec, hc, theme, layout, props, home, window, run, notify, shared, setShared } from "herdr";
+import { spaces, panes, terminals, agents, exec, hc, theme, layout, props, home, window, run, notify, shared, setShared } from "herdr";
 import { scan, listeners, argv } from "./scan.js";
 
 const MOD = "servers";
@@ -27,6 +27,10 @@ const HEAD = 41, GROUP = 28, ROW = 28, SHARE = 26, NOTE = 48, FOOT = 8, MAX = 30
 const OTHER = "other"; // the group of servers no space claims
 const LISTEN = 60000;    // a listener's mark keeps scans going this long while the section is hidden
 const REPUBLISH = 20000; // an unchanged "servers.spaces" is still rewritten this often, so its `at` stays fresh
+// Agent programs listen on local ports of their own (Codex does): they are agents,
+// listed as such elsewhere, not servers. Matched by process name, besides the
+// terminals Herdr knows run an agent.
+const AGENT_PROGRAMS = /^(codex|claude)$/i;
 const ASK = 250;         // how often "servers.request" is looked at
 const STALE_ASK = 10000; // a request older than this is ignored (one left from before a restart)
 
@@ -116,6 +120,14 @@ export default class Servers extends View {
     this.poll(cx);
   }
 
+  // Whether a listening process is an agent itself: an agent program by name, or the
+  // program (or foreground program) of a terminal Herdr lists as an agent.
+  isAgent(s) {
+    if (AGENT_PROGRAMS.test(s.proc ?? "")) return true;
+    const live = new Set(agents().map((a) => a.address));
+    return terminals().some((t) => live.has(t.address) && (t.pid === s.pid || t.foreground?.pid === s.pid));
+  }
+
   listened() {
     const at = shared("servers.listen");
     return typeof at === "number" && Date.now() - at < LISTEN;
@@ -168,7 +180,7 @@ export default class Servers extends View {
     this.loading = true;
     cx.spawn(async (cx) => {
       try {
-        this.servers = await scan(exec, window().platform, this.cache);
+        this.servers = (await scan(exec, window().platform, this.cache)).filter((s) => !this.isAgent(s));
         const pids = new Set(this.servers.map((s) => s.pid));
         for (const pid of this.stopping) if (!pids.has(pid)) this.stopping.delete(pid);
         this.error = null;

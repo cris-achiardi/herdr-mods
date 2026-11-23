@@ -6,7 +6,7 @@ A sidebar section for the [Herdr](https://herdr.dev) desktop app that lists the 
 
 ## What it adds
 
-- **The running servers**: every process listening on a TCP port that was started from a Herdr terminal, or that is a dev runtime (node, bun, deno, python, ruby, php, java, dotnet and a few more). Each shows its project folder's name and its port.
+- **The running servers**: every process listening on a TCP port that was started from a Herdr terminal, or that is a dev runtime (node, bun, deno, python, ruby, php, java, dotnet and a few more). Each shows its project folder's name and its port. Agents are left out: an agent program such as Codex listens on a local port of its own, but it is an agent, not a server.
 - **Grouped by space**: a server sits under the space whose terminal started it, or whose terminals are in its folder. The rest go under "Other". Click a space's row to fold its servers away.
 - **Restart**: stops the server and runs its command again in its folder, for when hot reload gives up. The new one runs in the background as a herdr-core terminal without a pane (`hc ls` shows it).
 - **Stop**: ends the server's process and the processes it started.
