@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. Right-clicks open the space-menu mod; a `below` hook for rows after the spaces and a `fold` hook at the end of a space row. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. Right-clicks open the space-menu mod; a `below` hook for rows after the spaces and `foldLead`/`fold` hooks at the start and end of a space row, and an `indent` for the rails. See NOTICE.
 // The spaces list: right-aligned branches, nested worktrees and a PR status line.
 // Repository facts follow each space's first terminal.
 import { div } from "gpui-kit";
@@ -975,7 +975,11 @@ export class Spaces {
     const dragged = this.withDragging(row, w);
     // Nested under the lists view, a worktree hangs from its main space's line.
     if (!(tree && this.under)) return dragged;
-    return h_flex().child(Rail(tree.startsWith("└") ? "└" : "├", 14)).child(dragged.flex_1().min_w(0));
+    // sidebar-plus: `indent`, set by the lists view, moves the rail under the avatar past the fold chevron.
+    return h_flex()
+      .when(Boolean(this.indent), (el) => el.child(div().w(this.indent).flex_none()))
+      .child(Rail(tree.startsWith("└") ? "└" : "├", 14))
+      .child(dragged.flex_1().min_w(0));
   }
 
   // Where the dragged space would land.
@@ -1029,6 +1033,8 @@ export class Spaces {
     return h_flex()
       .gap(9)
       .items_center()
+      // sidebar-plus: `foldLead`, set by the lists view, starts the row with its fold chevron.
+      .children(this.foldLead ? [this.foldLead(w, t)] : [])
       .when(Boolean(tree), (el) => el.when(!this.under, (e) => e.pl(22)).child(Icon("branch", 13).text_color(t.dim)))
       .when(!tree, (el) => el.child(this.avatar(w, t)))
       .child(
@@ -1036,7 +1042,7 @@ export class Spaces {
       )
       .child(this.branchName(g, w.name, t))
       .child(this.gitTail(g, w.active, t, w))
-      // sidebar-plus: `fold`, set by the lists view, ends the row with its fold button.
+      // sidebar-plus: `fold`, set by the lists view, ends a folded row with its count.
       .children(this.fold ? [this.fold(w, t)].filter(Boolean) : []);
   }
 

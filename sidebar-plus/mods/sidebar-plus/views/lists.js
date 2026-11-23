@@ -11,6 +11,10 @@ import { TEXT, Badge, Rail, Icon } from "./ui.js";
 import { ServerRows, serversOf, otherServers, listenForServers, SERVERS_LISTEN_EVERY } from "./servers.js";
 
 const TABS = ["spaces", "agents"];
+// sidebar-plus: the fold chevron before a space's avatar (12px, then the row's 9px
+// gap, less 4) moves the avatar this far right; the tree rails under it move as much.
+const FOLD_W = 12;
+const INDENT = FOLD_W + 9 - 4;
 
 export class Lists {
   init(props, cx) {
@@ -54,6 +58,8 @@ export class Lists {
     this.spaces.under = null;
     this.spaces.below = null;
     this.spaces.fold = null;
+    this.spaces.foldLead = null;
+    this.spaces.indent = 0;
     this.spaces.quiet = null;
     this.spaces.above = null;
     // The rail has no room for tabs: both lists, as numbers.
@@ -84,7 +90,12 @@ export class Lists {
     const pins = pinned?.members.map((a) => a.address) ?? [];
     order.push(...pins);
     this.spaces.above = () => (pinned ? this.agents.groupRows(pinned, 0, view, t) : []);
-    const nest = (lines, row) => h_flex().children(lines.map((l) => Rail(l))).child(row.flex_1().min_w(0));
+    const nest = (lines, row) =>
+      h_flex()
+        .child(div().w(INDENT).flex_none())
+        .children(lines.map((l) => Rail(l)))
+        .child(row.flex_1().min_w(0));
+    this.spaces.indent = INDENT;
     // A space's agents hang from its line; a main space's worktrees come after them,
     // so its line carries on, and a worktree's own agents sit one step further in.
     // Every tab shows: a tab with agents as its agents, any other as itself.
@@ -100,37 +111,51 @@ export class Lists {
         // sidebar-plus: the space's servers, after its tabs and agents.
         ...serversOf(w.id, now).map((srv) => ({ srv })),
       ];
-    // sidebar-plus: a space with rows under it ends with a fold button; folded, it
-    // counts them, colored by its most urgent agent. Next-agent keys still reach
-    // a folded space's agents.
+    // sidebar-plus: a space with rows under it starts with a fold chevron; folded, it
+    // ends with their count, coloured by its most urgent agent. Next-agent keys still
+    // reach a folded space's agents.
     const URGENT = ["blocked", "done", "working"];
-    this.spaces.fold = (w, th) => {
-      const items = itemsOf(w);
-      if (!items.length) return null;
+    const toggle = (w, cx) => {
+      if (!this.foldedSpaces.delete(w.id)) this.foldedSpaces.add(w.id);
+      localStorage.setItem("lists.folded-spaces", JSON.stringify([...this.foldedSpaces]));
+      cx.notify();
+    };
+    // Before the avatar: the chevron, or a gap as wide where nothing is under the space.
+    this.spaces.foldLead = (w, th) => {
+      if (!itemsOf(w).length) return div().w(FOLD_W).mr(-4).flex_none();
       const folded = this.foldedSpaces.has(w.id);
-      const top = URGENT.find((st) => items.some((x) => x.a?.status === st));
       return h_flex()
         .id(`space-fold-${w.id}`)
-        .flex_none()
+        .w(FOLD_W)
         .h(18)
-        .px(3)
-        .gap(3)
+        .mr(-4)
+        .flex_none()
         .items_center()
+        .justify_center()
         .rounded(4)
-        .text_size(TEXT.caption)
-        .text_color(folded && top ? (th[top] ?? th.dim) : th.dim)
+        .text_color(th.dim)
         .cursor_pointer()
         .tooltip(folded ? "Show its tabs, agents and servers" : "Fold its tabs, agents and servers")
         .hover((st) => st.bg(th.hover).text_color(th.foreground))
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .on_click((_e, cx) => {
           cx.stop_propagation();
-          if (!this.foldedSpaces.delete(w.id)) this.foldedSpaces.add(w.id);
-          localStorage.setItem("lists.folded-spaces", JSON.stringify([...this.foldedSpaces]));
-          cx.notify();
+          toggle(w, cx);
         })
-        .child(Icon(`chevron-${folded ? "right" : "down"}`, 11))
-        .when(folded, (el) => el.child(String(items.length)));
+        .child(Icon(`chevron-${folded ? "right" : "down"}`, 11));
+    };
+    // At the end of a folded space: how many rows are hidden, coloured by its most urgent agent.
+    this.spaces.fold = (w, th) => {
+      if (!this.foldedSpaces.has(w.id)) return null;
+      const items = itemsOf(w);
+      if (!items.length) return null;
+      const top = URGENT.find((st) => items.some((x) => x.a?.status === st));
+      return div()
+        .id(`space-count-${w.id}`)
+        .flex_none()
+        .text_size(TEXT.caption)
+        .text_color(top ? (th[top] ?? th.dim) : th.dim)
+        .child(String(items.length));
     };
     this.spaces.under = ({ w, tree, kids }) => {
       const items = itemsOf(w);
