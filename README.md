@@ -25,3 +25,19 @@ Each mod's README says what it runs and what it needs wired up after copying.
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+Copyright (c) 2026 cris-achiardi
+
+## Links
+
+- **Website:** [giorris.dev](https://giorris.dev)
+- **GitHub:** [@cris-achiardi](https://github.com/cris-achiardi)
+- **LinkedIn:** [Cristian Morales Achiardi](https://www.linkedin.com/in/cristian-morales-achiardi/)
+- **YouTube:** [@giongiorris](https://www.youtube.com/@giongiorris)
+- **Issues:** [GitHub Issues](https://github.com/cris-achiardi/herdr-mods/issues)
+
+## Buy me a coffee
+
+If these mods save you time, you can support the work:
+
+[![Buy Me A Coffee](https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=&slug=giorris&button_colour=5146e6&font_colour=ffffff&font_family=Comic&outline_colour=ffffff&coffee_colour=FFDD00)](https://www.buymeacoffee.com/giorris)
