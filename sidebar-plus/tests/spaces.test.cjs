@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. Expects the space-menu overlay. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. Expects the space-menu overlay; loader accepts CRLF. See NOTICE.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -129,6 +129,7 @@ function harness(stored = {}, options = {}) {
   ]) {
     const source = fs
       .readFileSync(path.join(runtime, file), "utf8")
+      .replace(/\r\n/g, "\n") // sidebar-plus: a Windows checkout (core.autocrlf) has CRLF
       .replace(/^import\s+[\s\S]*?;\n/gm, "")
       .replace("export class Spaces", "globalThis.Spaces = class Spaces")
       .replaceAll("export ", "");

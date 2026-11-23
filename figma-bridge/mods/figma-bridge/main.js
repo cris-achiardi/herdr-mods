@@ -4,18 +4,24 @@
 // A file's row folds its agents away, as a group heading in the agents list does.
 // The dot in the heading is the bridge light: green with a file connected,
 // yellow with a bridge running but no file, grey with no bridge.
-// Everything comes from probe.cjs, run with node every few seconds while shown.
+// Everything comes from probe.cjs, run with node every few seconds while shown,
+// or while another mod listens (shared "figma.listen", a time within LISTEN).
+// Each probe is also published as shared "figma.agents": { at, agents: { <agent
+// address>: [{ key, name, page, url, tool, at, calling }] } }, for a sidebar that
+// draws each agent's files under it (sidebar-plus).
 // props { demo: true } draws sample rows without running anything; with
 // { folded: ["b"] } the second sample file starts folded.
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, panes, terminals, exec, theme, layout, props, appHome, run } from "herdr";
+import { agents, panes, terminals, exec, theme, layout, props, appHome, run, shared, setShared } from "herdr";
 
 const MOD = "figma-bridge";
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
 const EVERY = 3000;
 const ACTIVE = 45000; // an agent counts as working on Figma this long after a call
+const LISTEN = 60000; // a listener's mark keeps probes going this long while the section is hidden
+const REPUBLISH = 20000; // an unchanged "figma.agents" is still rewritten this often, so its `at` stays fresh
 const HEAD = 41, FILE = 30, AGENT = 26, NOTE = 48, FOOT = 8, MAX = 300, SNAP = 8;
 
 const DEMO = {
@@ -67,7 +73,7 @@ export default class FigmaBridge extends View {
     try { this.folded = new Set(JSON.parse(localStorage.getItem("folded") ?? "[]")); } catch { this.folded = new Set(); }
     if (this.demo) { this.folded = new Set(props().folded ?? []); return; }
     try { [this.at, this.kept, this.from] = JSON.parse(localStorage.getItem("fit") ?? "[]"); } catch { /* fits anew */ }
-    cx.timer.every(EVERY, (cx) => { if (!this.loading && (block()?.shown ?? true)) this.poll(cx); });
+    cx.timer.every(EVERY, (cx) => { if (!this.loading && ((block()?.shown ?? true) || this.listened())) this.poll(cx); });
     this.poll(cx);
   }
 
@@ -79,11 +85,40 @@ export default class FigmaBridge extends View {
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim().split("\n")[0]);
         this.data = JSON.parse(r.stdout);
         this.error = null;
+        this.publish(this.data);
       } catch (e) {
         const text = String(e?.message ?? e);
         this.error = /not found|no such file|cannot find|os error 2/i.test(text) ? { title: "Node.js not found", body: "The bridge and this list both need node." } : { title: "Couldn't read the bridge", body: text.slice(0, 160) };
       } finally { this.loading = false; cx.notify(); }
     });
+  }
+
+  listened() {
+    const at = shared("figma.listen");
+    return typeof at === "number" && Date.now() - at < LISTEN;
+  }
+
+  // Each agent's files, by agent address: a session whose agent can't be found is
+  // left out (this section still shows it). Written only when it changed, or to
+  // keep `at` fresh; a reader treats an old `at` as the bridge having stopped.
+  publish(d) {
+    const byAgent = {};
+    for (const f of d.files ?? []) {
+      for (const a of f.agents ?? []) {
+        const g = agentOf(a);
+        if (!g) continue;
+        const list = (byAgent[g.address] ??= []);
+        const entry = { key: f.key, name: f.name ?? null, page: f.page ?? null, url: f.url ?? null, tool: a.tool ?? null, at: a.at ?? null, calling: Boolean(a.calling) };
+        const same = list.findIndex((x) => x.key === f.key);
+        if (same < 0) list.push(entry);
+        else if ((entry.at ?? 0) > (list[same].at ?? 0)) list[same] = entry;
+      }
+    }
+    const text = JSON.stringify(byAgent), now = Date.now();
+    if (text === this.published && now - (this.publishedAt ?? 0) < REPUBLISH) return;
+    this.published = text;
+    this.publishedAt = now;
+    setShared("figma.agents", { at: now, agents: byAgent });
   }
 
   // The block takes the height of what it lists, unfolded (a personal layout

@@ -10,6 +10,8 @@ A sidebar section for the [Herdr](https://herdr.dev) desktop app that shows whic
 - **The connected Figma files**, each with a button that opens it in the browser.
 - **The agent on each file**: the Herdr agent whose session last called Figma on that file. While it is calling Figma it shows the tool it is running and a spinner; afterwards, how long ago. Click it to go to that agent's terminal. Click a file to fold its agents away; folded, it shows how many there are and still spins while one is at work.
 
+**Shared with the sidebar.** Each probe also publishes which agent is on which file, so [Sidebar Plus](../sidebar-plus/) can draw each agent's files under it in the agents list. While Sidebar Plus is listening the probes keep running even with this section hidden, so you can switch the section off (Ctrl+Shift+M with [Mod Switches](../mod-switches/)) and still see the files there.
+
 It is read-only. It never talks to Figma and never sends anything to the bridge except a health request.
 
 ## Requirements
@@ -33,7 +35,7 @@ Herdr's shipped layouts are read-only and restored on every start, so on a stock
 
 ## What it runs
 
-Every 3 seconds while the section is on screen, `node mods/figma-bridge/probe.cjs`, which:
+Every 3 seconds while the section is on screen, or while another mod has asked for its results in the last minute, `node mods/figma-bridge/probe.cjs`, which:
 
 - reads the bridge's port files, `figma-console-mcp-<port>.json` in the system temp folder;
 - requests `/health` from each bridge, at `::1` and then `127.0.0.1`;
