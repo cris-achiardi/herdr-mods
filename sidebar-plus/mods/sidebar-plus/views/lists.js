@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; servers under their spaces. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; servers under their spaces; spaces fold. See NOTICE.
 // Spaces and agents in one block. Combined (the default): tabs for Spaces, with
 // each space's tabs and agents under it, and Agents. With `combined: false` in the settings: the
 // two lists one above the other, as two blocks of this mod would draw them.
@@ -7,7 +7,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { focused, theme, setAgentOrder } from "herdr";
 import { Spaces } from "./spaces.js";
 import { Agents } from "./agents.js";
-import { TEXT, Badge, Rail } from "./ui.js";
+import { TEXT, Badge, Rail, Icon } from "./ui.js";
 import { ServerRows, serversOf, otherServers, listenForServers, SERVERS_LISTEN_EVERY } from "./servers.js";
 
 const TABS = ["spaces", "agents"];
@@ -20,6 +20,12 @@ export class Lists {
     this.agents.init(props, cx);
     const saved = localStorage.getItem("lists.tab");
     this.tab = TABS.includes(saved) ? saved : "spaces";
+    // sidebar-plus: spaces folded in the Spaces tab, by id, kept across restarts.
+    try {
+      this.foldedSpaces = new Set(JSON.parse(localStorage.getItem("lists.folded-spaces") ?? "[]"));
+    } catch {
+      this.foldedSpaces = new Set();
+    }
     // sidebar-plus: servers from the servers mod, under their spaces in the Spaces tab.
     this.servers = new ServerRows();
     listenForServers();
@@ -47,6 +53,7 @@ export class Lists {
       .on_size_change((size, cx) => this.spaces.resized(size, cx));
     this.spaces.under = null;
     this.spaces.below = null;
+    this.spaces.fold = null;
     this.spaces.quiet = null;
     this.spaces.above = null;
     // The rail has no room for tabs: both lists, as numbers.
@@ -84,8 +91,7 @@ export class Lists {
     const shownTab = focused()?.tab;
     const plain = (tab) => !all.some((a) => a.tab === tab.id);
     const now = Date.now();
-    this.spaces.under = ({ w, tree, kids }) => {
-      const items = [
+    const itemsOf = (w) => [
         ...w.tabs.flatMap((tab) =>
           plain(tab)
             ? tab.settled ? [] : [{ tab }]
@@ -94,7 +100,42 @@ export class Lists {
         // sidebar-plus: the space's servers, after its tabs and agents.
         ...serversOf(w.id, now).map((srv) => ({ srv })),
       ];
+    // sidebar-plus: a space with rows under it ends with a fold button; folded, it
+    // counts them, colored by its most urgent agent. Next-agent keys still reach
+    // a folded space's agents.
+    const URGENT = ["blocked", "done", "working"];
+    this.spaces.fold = (w, th) => {
+      const items = itemsOf(w);
+      if (!items.length) return null;
+      const folded = this.foldedSpaces.has(w.id);
+      const top = URGENT.find((st) => items.some((x) => x.a?.status === st));
+      return h_flex()
+        .id(`space-fold-${w.id}`)
+        .flex_none()
+        .h(18)
+        .px(3)
+        .gap(3)
+        .items_center()
+        .rounded(4)
+        .text_size(TEXT.caption)
+        .text_color(folded && top ? (th[top] ?? th.dim) : th.dim)
+        .cursor_pointer()
+        .tooltip(folded ? "Show its tabs, agents and servers" : "Fold its tabs, agents and servers")
+        .hover((st) => st.bg(th.hover).text_color(th.foreground))
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .on_click((_e, cx) => {
+          cx.stop_propagation();
+          if (!this.foldedSpaces.delete(w.id)) this.foldedSpaces.add(w.id);
+          localStorage.setItem("lists.folded-spaces", JSON.stringify([...this.foldedSpaces]));
+          cx.notify();
+        })
+        .child(Icon(`chevron-${folded ? "right" : "down"}`, 11))
+        .when(folded, (el) => el.child(String(items.length)));
+    };
+    this.spaces.under = ({ w, tree, kids }) => {
+      const items = itemsOf(w);
       order.push(...items.filter((x) => x.a).map((x) => x.a.address));
+      if (this.foldedSpaces.has(w.id)) return [];
       const before = tree ? [tree.startsWith("└") ? "" : "│"] : [];
       return items.flatMap((x, i) => {
         const last = i === items.length - 1 && !kids;

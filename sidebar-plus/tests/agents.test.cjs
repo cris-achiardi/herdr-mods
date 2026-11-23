@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma row tests; loader accepts CRLF. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma row and fold tests; loader accepts CRLF. See NOTICE.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -446,6 +446,19 @@ test("sidebar-plus: a folded agent hides its Figma files too", () => {
   h.live.shared["figma.agents"] = { at: Date.now(), agents: { t1: [figmaFile("k1")] } };
   mod.folded.add("t1");
   assert.ok(!rows(mod.render(cx)).includes("figma-t1-k1"));
+});
+
+test("sidebar-plus: an agent with only Figma files can fold them, and folded counts them", () => {
+  const { h, mod } = agents("grouped");
+  h.live.shared["figma.agents"] = { at: Date.now(), agents: { t2: [figmaFile("k1"), figmaFile("k2")] } };
+  let list = find(mod.render(cx), "ag-list");
+  const row = list.nodes.find((n) => n.id === "ag-t2");
+  const fold = find(row, "fold-t2");
+  assert.ok(fold, "a fold button without any sub-agent");
+  fold.handlers.click({}, cx);
+  list = find(mod.render(cx), "ag-list");
+  assert.ok(!list.nodes.some((n) => String(n.id).startsWith("figma-t2-")), "its files are folded away");
+  assert.match(strings(find(list.nodes.find((n) => n.id === "ag-t2"), "fold-t2")), /2/);
 });
 
 test("sidebar-plus: the agents view tells figma-bridge it listens", () => {

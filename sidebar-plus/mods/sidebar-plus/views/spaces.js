@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. Right-clicks open the space-menu mod; a `below` hook for rows after the spaces. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. Right-clicks open the space-menu mod; a `below` hook for rows after the spaces and a `fold` hook at the end of a space row. See NOTICE.
 // The spaces list: right-aligned branches, nested worktrees and a PR status line.
 // Repository facts follow each space's first terminal.
 import { div } from "gpui-kit";
@@ -1035,7 +1035,9 @@ export class Spaces {
         div().flex_initial().min_w(48).truncate().tooltip(w.name).text_color(t.foreground).child(w.name),
       )
       .child(this.branchName(g, w.name, t))
-      .child(this.gitTail(g, w.active, t, w));
+      .child(this.gitTail(g, w.active, t, w))
+      // sidebar-plus: `fold`, set by the lists view, ends the row with its fold button.
+      .children(this.fold ? [this.fold(w, t)].filter(Boolean) : []);
   }
 
   avatar(w, t) {

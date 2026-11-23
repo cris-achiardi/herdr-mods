@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma files from figma-bridge under agents. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma files from figma-bridge under agents; an agent folds whatever hangs under it. See NOTICE.
 // Adapted from Herdr's shipped agents mod, with grouping by main space and by
 // name prefix. Agents in grouped or priority views; parents take their most urgent sub-agent's place.
 
@@ -716,6 +716,7 @@ export class Agents {
   }
 
   agentRow(a, subs, view, t) {
+    const drawn = view.all ? this.branch(view.all, a.address) : subs;
     const pic = icon(a.program, 16, t.foreground);
     const hovered = this.hovered === a.address;
     const when = this.since(a);
@@ -743,7 +744,8 @@ export class Agents {
       .when(Boolean(machine), (el) =>
         el.child(div().text_size(TEXT.badge).text_color(t.dim).child(machine)),
       )
-      .when(subs.length > 0, (el) => el.child(this.foldButton(a, subs, t)))
+      // sidebar-plus: anything under the agent folds (Figma files too), and folded it counts them all.
+      .when(drawn.length > 0, (el) => el.child(this.foldButton(a, subs, t, drawn.length)))
       .when(hovered, (el) => el.child(this.pinButton(a, t)))
       .when(!hovered && Boolean(when), (el) =>
         el.child(
@@ -855,7 +857,7 @@ export class Agents {
   }
 
   // The fold chevron; folded, the count too, colored by the most urgent one.
-  foldButton(a, subs, t) {
+  foldButton(a, subs, t, count = subs.length) {
     const statuses = subs.map((s) => kidStatus(s.t, this.listed));
     const top = statuses.reduce((m, s) => ((RANK[s] ?? 0) > (RANK[m] ?? 0) ? s : m), null);
     const open = !this.folded.has(a.address);
@@ -876,7 +878,7 @@ export class Agents {
         this.toggleFold(a.address, cx);
       })
       .child(Icon(`chevron-${open ? "down" : "right"}`, 11))
-      .when(!open, (el) => el.child(String(subs.length)));
+      .when(!open, (el) => el.child(String(count)));
   }
 
   pinButton(a, t) {
