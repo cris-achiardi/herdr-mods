@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; loader accepts CRLF. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; loader accepts CRLF; server row tests. See NOTICE.
 // The lists view: spaces and agents in one block, under tabs or one above the other.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -65,7 +65,7 @@ async function harness({ settings = {}, tab = null, panes = [], sharedValues = {
     window: () => ({ active: true, platform: "macos" }),
     props: () => ({ view: "lists" }),
     shared: (k) => sharedValues[k],
-    setShared() {},
+    setShared: (k, v) => (sharedValues[k] = v), // sidebar-plus: kept, so server requests can be read back
     setAgentOrder: (list) => (live.order = [...list]),
     run() {},
     openOverlay() {},
@@ -79,7 +79,7 @@ async function harness({ settings = {}, tab = null, panes = [], sharedValues = {
   };
   vm.createContext(context);
   // Each file in its own scope, as a module is; its exports become globals for the next.
-  for (const file of ["settings.js", "defaults.js", "git/pr-status.js", "git/checkouts.js", "views/find-node.js", "views/ui.js", "views/spaces.js", "views/agents.js", "views/lists.js"]) {
+  for (const file of ["settings.js", "defaults.js", "git/pr-status.js", "git/checkouts.js", "views/find-node.js", "views/ui.js", "views/spaces.js", "views/agents.js", "views/servers.js", "views/lists.js"]) {
     // sidebar-plus: a Windows checkout (core.autocrlf) has CRLF.
     const source = fs.readFileSync(path.join(runtime, file), "utf8").replace(/\r\n/g, "\n").replace(/^import\s+[\s\S]*?;\n/gm, "");
     const names = [...source.matchAll(/^export (?:async )?(?:class|function|const) (\w+)/gm)].map((m) => m[1]);
@@ -88,7 +88,7 @@ async function harness({ settings = {}, tab = null, panes = [], sharedValues = {
   const mod = new context.Lists();
   mod.init({}, cx);
   while (pending.length) await Promise.all(pending.splice(0));
-  return { mod, live, stored, cx };
+  return { mod, live, stored, cx, sharedValues };
 }
 
 const find = (node, id) => (node?.id === id ? node : node?.nodes?.map((n) => find(n, id)).find(Boolean));
@@ -204,3 +204,49 @@ test("the Spaces tab offers the space sort beside New space, and Agents its own 
   assert.ok(find(other, "ag-sort-menu"));
 });
 
+// sidebar-plus: servers from the servers mod's shared "servers.spaces".
+const server = (pid, port, extra = {}) => ({ pid, port, name: `app${port}`, tool: "node", dir: "/shop", pane: null, restartable: true, stopping: false, share: null, ...extra });
+
+test("sidebar-plus: a space's servers come after its tabs and agents, and unclaimed ones under Other servers", async () => {
+  const sharedValues = { "servers.spaces": { at: Date.now(), spaces: { shop: [server(10, 5173)] }, other: [server(11, 8080)] } };
+  const { mod } = await harness({ sharedValues });
+  const drawn = ids(mod.render()).filter((id) => /^(space-(shop|docs)|ag-t\d|tab-\w|srv-.*)$/.test(id));
+  assert.deepEqual(drawn, ["space-shop", "ag-t1", "ag-t3", "tab-d", "srv-10-5173", "space-docs", "ag-t2", "srv-11-8080"]);
+  assert.match(text(find(mod.render(), "srv-10-5173")), /app5173\s+:5173/);
+  assert.match(text(mod.render()), /Other servers/);
+});
+
+test("sidebar-plus: stale or missing server data draws no server rows", async () => {
+  const stale = { "servers.spaces": { at: Date.now() - 120000, spaces: { shop: [server(10, 5173)] }, other: [] } };
+  assert.ok(!ids((await harness({ sharedValues: stale })).mod.render()).some((id) => String(id).startsWith("srv-")));
+  assert.ok(!ids((await harness()).mod.render()).some((id) => String(id).startsWith("srv-")));
+});
+
+test("sidebar-plus: a server row opens it, and its buttons ask the servers mod", async () => {
+  const sharedValues = { "servers.spaces": { at: Date.now(), spaces: { shop: [server(10, 5173)] }, other: [] } };
+  const { mod, cx } = await harness({ sharedValues });
+  let opened = null;
+  find(mod.render(), "srv-10-5173").handlers.click({}, { open_url: (u) => (opened = u) });
+  assert.equal(opened, "http://localhost:5173");
+  assert.equal(find(mod.render(), "srv-stop-10-5173"), undefined, "buttons only on hover");
+  mod.servers.hovered = "10-5173";
+  const root = mod.render();
+  assert.ok(find(root, "srv-restart-10-5173") && find(root, "srv-share-10-5173") && find(root, "srv-open-10-5173"));
+  find(root, "srv-stop-10-5173").handlers.click({}, cx);
+  const r = sharedValues["servers.request"];
+  assert.equal(r.action, "stop");
+  assert.equal(r.pid, 10);
+  assert.equal(r.port, 5173);
+  assert.equal(typeof r.at, "number");
+  assert.equal(typeof sharedValues["servers.listen"], "number", "it says it listens");
+});
+
+test("sidebar-plus: a shared server offers copy and stop sharing instead of share", async () => {
+  const sharedValues = { "servers.spaces": { at: Date.now(), spaces: { shop: [server(10, 5173, { share: { url: "https://x.trycloudflare.com" }, restartable: false })] }, other: [] } };
+  const { mod } = await harness({ sharedValues });
+  mod.servers.hovered = "10-5173";
+  const root = mod.render();
+  assert.equal(find(root, "srv-share-10-5173"), undefined);
+  assert.equal(find(root, "srv-restart-10-5173"), undefined, "no restart without a folder and command");
+  assert.ok(find(root, "srv-copy-10-5173") && find(root, "srv-unshare-10-5173"));
+});

@@ -12,6 +12,7 @@ A sidebar section for the [Herdr](https://herdr.dev) desktop app that lists the 
 - **Stop**: ends the server's process and the processes it started.
 - **Share**: gives the server a temporary public address (`https://<random words>.trycloudflare.com`) through a Cloudflare quick tunnel and copies it. The address shows under the server; click it to copy it again, or its ✕ to stop sharing. **Anyone who has the link can see the server until you stop sharing**; there is no password.
 - **Open in browser**: opens `http://localhost:<port>`.
+- **Shared with the sidebar**: each scan is also published so [Sidebar Plus](../sidebar-plus/) can list servers under their spaces, with the same buttons; it asks this mod to restart, stop or share. While Sidebar Plus listens the scans keep running even with this section hidden, so you can switch the section off (Ctrl+Shift+M with [Mod Switches](../mod-switches/)).
 - Click a server to go to its space.
 - **Its own height**: the section is as tall as its list. Drag its top edge (the pointer turns into a resize cursor there) and it keeps the height you gave it, also after a restart; double-click the edge or the "Servers" heading and it fits itself again.
 
