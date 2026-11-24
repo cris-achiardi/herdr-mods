@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma row tests; loader accepts CRLF. See NOTICE.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -84,6 +84,7 @@ function harness(view) {
 function read(file) {
   return fs
     .readFileSync(path.join(runtime, file), "utf8")
+    .replace(/\r\n/g, "\n") // sidebar-plus: a Windows checkout (core.autocrlf) has CRLF
     .replace(/^import\s+[\s\S]*?;\n/gm, "")
     .replaceAll("export ", "");
 }
@@ -390,6 +391,66 @@ test("a kept sub-agent shows once, under its parent", () => {
   const drawn = rows(mod.render(cx));
   assert.ok(drawn.includes("sub-t9"), "it is under its parent");
   assert.ok(!drawn.includes("ag-t9"), "it has no row of its own");
+});
+
+// sidebar-plus: Figma files from figma-bridge's shared "figma.agents".
+const figmaFile = (key, extra = {}) => ({
+  key,
+  name: `File ${key}`,
+  page: "  ├ Button",
+  url: `https://www.figma.com/file/${key}`,
+  tool: "figma_execute",
+  at: Date.now(),
+  calling: true,
+  ...extra,
+});
+
+test("sidebar-plus: an agent's Figma files hang under it, before its sub-agents, and a sub-agent's under the sub-agent", () => {
+  const { h, mod } = agents("grouped");
+  h.live.terminals = [{ address: "t9", parent: "t1", state: "live", name: "helper" }];
+  h.live.shared["figma.agents"] = {
+    at: Date.now(),
+    agents: { t1: [figmaFile("k1")], t9: [figmaFile("k2", { calling: false, at: Date.now() - 5 * 60000 })] },
+  };
+  const drawn = rows(mod.render(cx));
+  const at = (id) => drawn.indexOf(id);
+  assert.ok(at("ag-t1") >= 0 && at("ag-t1") < at("figma-t1-k1"), "the file is under its agent");
+  assert.ok(at("figma-t1-k1") < at("sub-t9"), "files come before sub-agents");
+  assert.ok(at("sub-t9") < at("figma-t9-k2"), "a sub-agent's file is under the sub-agent");
+  const list = find(mod.render(cx), "ag-list");
+  const working = strings(list.nodes[at("figma-t1-k1")]);
+  assert.match(working, /File k1/);
+  assert.match(working, /Button/, "the page, without its tree characters");
+  assert.doesNotMatch(working, /├/);
+  assert.match(working, /execute/, "while calling, the tool without its figma_ prefix");
+  assert.match(strings(list.nodes[at("figma-t9-k2")]), /5m/, "after the active window, how long ago");
+});
+
+test("sidebar-plus: Figma rows open the file, and stale or missing bridge data draws none", () => {
+  const { h, mod } = agents("grouped");
+  h.live.shared["figma.agents"] = { at: Date.now(), agents: { t1: [figmaFile("k1")] } };
+  let list = find(mod.render(cx), "ag-list");
+  const row = list.nodes.find((n) => n.id === "figma-t1-k1");
+  let opened = null;
+  row.handlers.click({}, { open_url: (url) => (opened = url) });
+  assert.equal(opened, "https://www.figma.com/file/k1");
+  h.live.shared["figma.agents"].at = Date.now() - 120000;
+  assert.ok(!rows(mod.render(cx)).some((id) => id.startsWith("figma-")), "older than a minute: the bridge stopped");
+  delete h.live.shared["figma.agents"];
+  assert.ok(!rows(mod.render(cx)).some((id) => id.startsWith("figma-")), "no bridge installed");
+});
+
+test("sidebar-plus: a folded agent hides its Figma files too", () => {
+  const { h, mod } = agents("grouped");
+  h.live.terminals = [{ address: "t9", parent: "t1", state: "live", name: "helper" }];
+  h.live.shared["figma.agents"] = { at: Date.now(), agents: { t1: [figmaFile("k1")] } };
+  mod.folded.add("t1");
+  assert.ok(!rows(mod.render(cx)).includes("figma-t1-k1"));
+});
+
+test("sidebar-plus: the agents view tells figma-bridge it listens", () => {
+  const { h } = agents("grouped");
+  assert.equal(typeof h.live.shared["figma.listen"], "number");
 });
 
 test("the pin button asks the core to pin the agent", () => {

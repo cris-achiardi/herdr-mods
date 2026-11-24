@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; Figma files from figma-bridge under agents. See NOTICE.
 // Adapted from Herdr's shipped agents mod, with grouping by main space and by
 // name prefix. Agents in grouped or priority views; parents take their most urgent sub-agent's place.
 
@@ -118,6 +118,15 @@ function grouping(sort, tabName) {
   return null;
 }
 
+// Figma files under agents: the figma-bridge mod publishes, per agent address,
+// the files its sessions last called figma-console on (shared "figma.agents").
+// It probes while its own section shows, or while this mod has said it listens
+// within the last minute (shared "figma.listen", renewed every 30 s).
+const FIGMA_FRESH = 60000; // older than this, the bridge has stopped publishing
+const FIGMA_ACTIVE = 45000; // working on the file this long after a call, as figma-bridge counts
+const figmaTool = (tool) => (tool ?? "").replace(/^(figma|figjam)_/, "").replace(/_/g, " ").trim();
+const figmaPage = (page) => (page ?? "").replace(/^[^\p{L}\p{N}]+/u, "").trim();
+
 function duration(ms) {
   const m = Math.floor(ms / 60000);
   if (m < 1) return "<1m";
@@ -181,7 +190,11 @@ export class Agents {
     if (!Array.isArray(this.pendingPins)) this.pendingPins = [];
     this.migratingPins = new Set();
     this.nameBy = DEFAULT_SETTINGS.agent_name;
-    cx.timer.every(30000, (cx) => cx.notify());
+    setShared("figma.listen", Date.now());
+    cx.timer.every(30000, (cx) => {
+      setShared("figma.listen", Date.now());
+      cx.notify();
+    });
     // The spaces view reports problems with the settings; this one only needs the name.
     cx.spawn(async (cx) => {
       const { settings } = await loadSettings("sidebar-plus", DEFAULT_SETTINGS);
@@ -292,6 +305,94 @@ export class Agents {
         ...this.tree(all, k.address, [...lead, last ? "" : "│"]),
       ];
     });
+  }
+
+  // The Figma files an agent is on, from figma-bridge; none when it isn't publishing.
+  figmaFiles(addr) {
+    const d = shared("figma.agents");
+    if (!d || typeof d.at !== "number" || Date.now() - d.at > FIGMA_FRESH) return [];
+    return Array.isArray(d.agents?.[addr]) ? d.agents[addr] : [];
+  }
+
+  // What hangs under an agent as drawn: its Figma files, then its live
+  // sub-agents, each sub-agent with its own files and sub-agents, depth first.
+  // tree() stays sub-agents only: statuses, folding and nesting read it.
+  branch(all, addr, lead = []) {
+    const items = [
+      ...this.figmaFiles(addr).map((f) => ({ f })),
+      ...all.filter((k) => k.parent === addr && k.state === "live").map((k) => ({ k })),
+    ];
+    return items.flatMap((x, i) => {
+      const last = i === items.length - 1;
+      const lines = [...lead, last ? "└" : "├"];
+      if (x.f) return [{ f: x.f, owner: addr, lines }];
+      return [{ t: x.k, lines }, ...this.branch(all, x.k.address, [...lead, last ? "" : "│"])];
+    });
+  }
+
+  treeLines(lines, t) {
+    return lines.map((l) =>
+      div()
+        .self_start()
+        .mt(-4)
+        .w(9)
+        .h(17)
+        .mr(4)
+        .flex_none()
+        .when(Boolean(l), (el) => el.border_l(1.5).border_color(t.input))
+        .when(l === "└" || l === "├", (el) => el.border_b(1.5).rounded_bl(6)),
+    );
+  }
+
+  // A Figma file under its agent: name, page, and while the agent works on it the
+  // figma-console tool it last ran with a spinner, else how long ago. Opens the file.
+  figmaRow(t, s, now) {
+    const f = s.f;
+    const at = typeof f.at === "number" ? f.at : 0;
+    const active = Boolean(f.calling) || now - at < FIGMA_ACTIVE;
+    const page = figmaPage(f.page);
+    const name = f.name || "Untitled";
+    return h_flex()
+      .id(`figma-${s.owner}-${f.key}`)
+      .pl(39)
+      .pr(8)
+      .rounded(8)
+      .h(26)
+      .flex_none()
+      .gap(0)
+      .items_center()
+      .text_size(12.5)
+      .cursor_pointer()
+      .hover((st) => st.bg(t.hover))
+      .tooltip(page ? `${name} · ${page} · open in Figma` : `${name} · open in Figma`)
+      .on_click((_e, cx) => {
+        if (f.url) cx.open_url(f.url);
+      })
+      .children(this.treeLines(s.lines, t))
+      .child(div().mr(8).flex_none().child(Icon("figma", 13).text_color(t.muted)))
+      .child(
+        h_flex()
+          .flex_1()
+          .min_w(0)
+          .gap(5)
+          .items_center()
+          .child(div().min_w(0).truncate().text_color(active ? t.foreground : t.muted).child(name))
+          .when(Boolean(page), (el) =>
+            el.child(div().flex_1().min_w(0).truncate().text_size(TEXT.caption).text_color(t.dim).child(page)),
+          ),
+      )
+      .child(
+        active
+          ? h_flex()
+              .flex_none()
+              .gap(5)
+              .items_center()
+              .text_size(TEXT.caption)
+              .text_color(t.dim)
+              .child(figmaTool(f.tool))
+              .child(Icon("spinner", 12).text_color(t.working ?? t.ansi4).spin(900))
+          : div().flex_none().text_size(TEXT.caption).text_color(t.dim).child(duration(now - at)),
+      );
   }
 
   subRow(t, s, shown, compact) {
@@ -577,7 +678,12 @@ export class Agents {
     const subs = this.tree(view.all, a.address);
     const row = this.agentRow(a, subs, view, t);
     if (this.folded.has(a.address)) return [row];
-    return [row, ...subs.map((s) => this.subRow(t, s, view.shown, view.byPriority))];
+    return [
+      row,
+      ...this.branch(view.all, a.address).map((s) =>
+        s.f ? this.figmaRow(t, s, view.now ?? Date.now()) : this.subRow(t, s, view.shown, view.byPriority),
+      ),
+    ];
   }
 
   railRow(a, i, t) {

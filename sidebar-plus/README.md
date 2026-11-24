@@ -68,6 +68,8 @@ The agents block is adapted from Herdr's shipped panel and keeps its pins, sub-a
 
 Pinning an agent asks Herdr to keep the pin with the agent's terminal, so the pin shows in every Herdr window and on the phone, and ends with the agent. A sub-agent that has a pane of its own shows once, under its parent.
 
+**Figma files** (Sidebar Plus). With this repository's [Figma Bridge](../figma-bridge/) installed, each agent lists the Figma files its Claude Code session last worked on, under its row and before its sub-agents; a sub-agent's files hang under the sub-agent. A file row shows the file name and page; while the agent is calling Figma, the figma-console tool it runs and a spinner, afterwards how long ago. Click it to open the file. Folding an agent folds its files too. The same rows show under agents in the combined Spaces list. Without Figma Bridge, or when it stops reporting for a minute, there are no file rows. The Figma section itself can be switched off: the agents view keeps Figma Bridge probing while it listens.
+
 ### Spaces and agents in one block
 
 A block with `"props": { "view": "lists" }` shows both lists, under two tabs:
@@ -159,5 +161,6 @@ Based on Better Sidebar 3.10.0 ([bad7512](https://github.com/munza/herdr-mods/tr
 - **Name.** Folder, asset paths, settings file, shared key (`sidebar-plus.space-parents`), element ids and the `toggle-panel` command are `sidebar-plus`, so it installs beside Better Sidebar and an update of either never overwrites the other.
 - **Space menu.** A right-click on a space row, or on the empty part of the list, opens this repository's [Space Menu](../space-menu/) (`space-menu` mod, `{ space }` props, at the pointer) instead of Herdr's shipped `menu`. Needs `space-menu` installed.
 - **Pull requests from `gh pr list`.** `gh` can leave `headRepository.nameWithOwner` empty in `pr list` output, which dropped the space's own PR as an unrelated fork. The query also asks for `headRepositoryOwner`, and the head is matched as `owner/name` when `nameWithOwner` is missing.
-- **Tests.** The spaces test expects the `space-menu` overlay.
+- **Figma files under agents.** The agents view (and the combined lists) draws an agent's Figma files, read from Figma Bridge's shared `figma.agents`, before its sub-agents, each sub-agent with its own; tree lines as for sub-agents; a click opens the file. It marks shared `figma.listen` on start and every 30 s so Figma Bridge keeps probing while its section is hidden. `icons/figma.svg` is Lucide's (ISC, `icons/LICENSE-lucide.txt`).
+- **Tests.** The spaces test expects the `space-menu` overlay; four agents tests cover the Figma rows; the test loaders accept CRLF, as a Windows checkout with `core.autocrlf` has.
 
