@@ -12,6 +12,7 @@ Mods for the [Herdr](https://herdr.dev) desktop app. Each mod lives in its own f
 | [Scripts](scripts/) | A side panel listing the project's `package.json` scripts; a click runs one in a new terminal pane. |
 | [Workspaces](workspaces/) | A "Workspace" link in the tab bar that opens a menu of your layouts; each layout is its own set of mods, so picking one switches them. Includes a clean copy of Herdr's default with the link, listed in place of the original. |
 | [Mod Switches](mod-switches/) | Ctrl+Shift+M opens a dialog with an on/off switch for every mod on screen (sidebar sections, panels, bars); off hides it without uninstalling, per layout. |
+| [Sidebar Plus](sidebar-plus/) | Our fork of [Better Sidebar](https://github.com/munza/herdr-mods/tree/main/better-sidebar) 3.10.0 by Tawsif Aqib (Apache-2.0): spaces with branches, worktrees and PR status, an agents list and a footer, wired to Space Menu. |
 | [Herdr orchestration](herdr-orchestration/) | Not a mod: a Claude Code skill, role templates and scripts for running Claude workers and a Codex reviewer in split panes, with a tested list of hc/Codex/Windows frictions. |
 
 ## Install
@@ -37,7 +38,7 @@ These mods are maintained by Cristian Morales, but suggestions and improvements 
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE), except [sidebar-plus/](sidebar-plus/), which is Apache-2.0 (its own LICENSE and NOTICE).
 
 Copyright (c) 2026 cris-achiardi
 

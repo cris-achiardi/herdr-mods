@@ -1,0 +1,5 @@
+{
+  "global": {
+    "cmd-shift-b": "sidebar-plus.toggle-panel"
+  }
+}

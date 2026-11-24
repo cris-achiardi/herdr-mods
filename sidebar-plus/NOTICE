@@ -1,0 +1,45 @@
+Herdr Mods — Better Changes, Better Files, Better Sidebar, Better Tabs, Branch PR,
+and Branch Issue
+Copyright 2026 Tawsif Aqib
+
+Better Changes adapts behavior and code from Herdr Desktop's shipped Changes mod.
+Better Files adapts behavior and code from Herdr Desktop's shipped Files mod.
+Herdr Desktop is available at https://github.com/herdrdev/herdr-app and is
+licensed under the Apache License, Version 2.0.
+
+Better Sidebar adapts code from Herdr Desktop's shipped spaces and agents mods.
+Its bundled navigation and pull-request SVG icons are also adapted from
+Herdr Desktop.
+
+Better Tabs adapts Herdr Desktop's shipped tabs mod through the former Factory
+Tabs clone. Its bundled close, spinner, file, changes, and window-control SVG
+icons are adapted from Herdr Desktop as well. It adds configurable toolbar
+actions and an overflow menu.
+
+Branch PR extracts the pull-request integration originally developed in
+herdr-workflow by Tawsif Aqib, including its native UI, GitHub CLI Go bridge,
+agent actions, and tests. Its bundled UI SVG icons are adapted from Herdr
+Desktop's icon set.
+
+Better Icons bundles icons from the Material Icon Theme for VS Code, version
+5.40.0, copyright (c) 2025 Material Extensions, licensed under the MIT License
+(https://github.com/material-extensions/vscode-material-icon-theme). The
+licence text ships beside them as LICENSE-material-icon-theme.txt.
+
+This distribution adds tree/flat file lists, staging controls, reusable diff
+tabs, inline/split views, configurable typography, right-aligned space branches,
+standalone GitHub CLI pull-request status, documentation, and tests.
+
+-------------------------------------------------------------------------------
+
+Sidebar Plus
+
+This folder holds Sidebar Plus, a modified copy of Better Sidebar 3.10.0 from
+https://github.com/munza/herdr-mods (commit bad7512b6148b7092068cd3a6478c45706731c18),
+copyright 2026 Tawsif Aqib, licensed under the Apache License, Version 2.0.
+The notice above is Better Sidebar's, kept as distributed.
+
+Modifications copyright 2026 cris-achiardi, under the same license: renamed
+to sidebar-plus throughout; right-clicks open the space-menu mod; pull-request
+heads matched through headRepositoryOwner when gh leaves nameWithOwner empty.
+Modified files say so at the top. See README.md, "Changes from Better Sidebar".
