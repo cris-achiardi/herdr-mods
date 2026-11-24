@@ -5,13 +5,19 @@
 // link (a Cloudflare quick tunnel) and open it in the browser.
 // A space's row folds its servers away, as a file's row does in figma-bridge.
 // Its top edge is a grip: dragged, it sets the section's height.
-// The list comes from scan.js, run every few seconds while the section is shown.
+// The list comes from scan.js, run every few seconds while the section is shown,
+// or while another mod listens (shared "servers.listen", a time within LISTEN).
+// Each scan is also published as shared "servers.spaces" ({ at, spaces: { <space
+// id>: [server] }, other: [server] }, see publish()), and the buttons can be
+// pressed from elsewhere through shared "servers.request" ({ id, action, pid,
+// port, at }; see requests()), for a sidebar that lists servers under their
+// spaces (sidebar-plus).
 // props { demo: true } draws sample rows without running anything; with
 // { folded: ["b"] } the second sample space starts folded.
 
 import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, Slider, SliderTrack, SliderIndicator, SliderThumb, SliderState } from "gpui-base";
-import { spaces, panes, terminals, exec, hc, theme, layout, props, home, window, run, notify } from "herdr";
+import { spaces, panes, terminals, agents, exec, hc, theme, layout, props, home, window, run, notify, shared, setShared } from "herdr";
 import { scan, listeners, argv } from "./scan.js";
 
 const MOD = "servers";
@@ -19,6 +25,14 @@ const ICON = (name) => `mods/${MOD}/${name}.svg`;
 const EVERY = 5000;
 const HEAD = 41, GROUP = 28, ROW = 28, SHARE = 26, NOTE = 48, FOOT = 8, MAX = 300, GRIP = 6, REACH = 4000;
 const OTHER = "other"; // the group of servers no space claims
+const LISTEN = 60000;    // a listener's mark keeps scans going this long while the section is hidden
+const REPUBLISH = 20000; // an unchanged "servers.spaces" is still rewritten this often, so its `at` stays fresh
+// Agent programs listen on local ports of their own (Codex does): they are agents,
+// listed as such elsewhere, not servers. Matched by process name, besides the
+// terminals Herdr knows run an agent.
+const AGENT_PROGRAMS = /^(codex|claude)$/i;
+const ASK = 250;         // how often "servers.request" is looked at
+const STALE_ASK = 10000; // a request older than this is ignored (one left from before a restart)
 
 const DEMO = [
   { space: "a", label: "website", servers: [{ port: 4321, pid: 1, name: "website", tool: "astro", link: "https://quiet-river-sample.trycloudflare.com" }, { port: 6006, pid: 2, name: "storybook", tool: "storybook" }] },
@@ -100,19 +114,78 @@ export default class Servers extends View {
     this.grip = SliderState.new({ min: 0, max: REACH });
     this.grip.on("change", (v) => this.pull(v));
     this.grip.on("release", (_v, cx) => this.drop(cx));
-    cx.timer.every(EVERY, (cx) => { if (!this.loading && (block()?.shown ?? true)) this.poll(cx); });
+    cx.timer.every(EVERY, (cx) => { if (!this.loading && ((block()?.shown ?? true) || this.listened())) this.poll(cx); });
+    this.asked = shared("servers.request")?.id ?? null; // one already there was meant for an earlier run
+    cx.timer.every(ASK, (cx) => this.requests(cx));
     this.poll(cx);
+  }
+
+  // Whether a listening process is an agent itself: an agent program by name, or the
+  // program (or foreground program) of a terminal Herdr lists as an agent.
+  isAgent(s) {
+    if (AGENT_PROGRAMS.test(s.proc ?? "")) return true;
+    const live = new Set(agents().map((a) => a.address));
+    return terminals().some((t) => live.has(t.address) && (t.pid === s.pid || t.foreground?.pid === s.pid));
+  }
+
+  listened() {
+    const at = shared("servers.listen");
+    return typeof at === "number" && Date.now() - at < LISTEN;
+  }
+
+  // The list as another mod draws it: servers by space id, the unclaimed under
+  // `other`. `share` is null, or { url } with url null while the tunnel starts.
+  // Written when it changed, or to keep `at` fresh; a reader treats an old `at`
+  // as this mod having stopped.
+  publish(force = false) {
+    if (this.demo || !this.servers) return;
+    const shares = this.shares();
+    const entry = (s) => {
+      const address = shares.get(s.port);
+      const on = Boolean(address) || this.pending.has(s.port);
+      return {
+        pid: s.pid, port: s.port, name: s.name, tool: s.tool ?? null, dir: s.dir ?? null, pane: s.pane ?? null,
+        restartable: Boolean(s.dir && s.cmd), stopping: this.stopping.has(s.pid),
+        share: on ? { url: (address && this.urls.get(address)) || null } : null,
+      };
+    };
+    const out = { spaces: {}, other: [] };
+    for (const g of groups(this.servers)) {
+      if (g.space === OTHER) out.other = g.servers.map(entry);
+      else out.spaces[g.space] = g.servers.map(entry);
+    }
+    const text = JSON.stringify(out), now = Date.now();
+    if (!force && text === this.published && now - (this.publishedAt ?? 0) < REPUBLISH) return;
+    this.published = text;
+    this.publishedAt = now;
+    setShared("servers.spaces", { at: now, ...out });
+  }
+
+  // A button pressed in another mod: the newest request, once, if it is recent
+  // and names a server listed now (by pid and port).
+  requests(cx) {
+    const r = shared("servers.request");
+    if (!r || r.id == null || r.id === this.asked) return;
+    this.asked = r.id;
+    if (typeof r.at !== "number" || Date.now() - r.at > STALE_ASK) return;
+    if (r.action === "unshare") return this.unshare(r.port, cx);
+    const s = this.servers?.find((x) => x.pid === r.pid && x.port === r.port);
+    if (!s) return;
+    if (r.action === "stop") this.stop(s, cx);
+    else if (r.action === "restart" && s.dir && s.cmd) this.restart(s, cx);
+    else if (r.action === "share") this.share(s, cx);
   }
 
   poll(cx) {
     this.loading = true;
     cx.spawn(async (cx) => {
       try {
-        this.servers = await scan(exec, window().platform, this.cache);
+        this.servers = (await scan(exec, window().platform, this.cache)).filter((s) => !this.isAgent(s));
         const pids = new Set(this.servers.map((s) => s.pid));
         for (const pid of this.stopping) if (!pids.has(pid)) this.stopping.delete(pid);
         this.error = null;
         await this.links(cx);
+        this.publish();
       } catch (e) {
         this.error = { title: "Couldn't list the servers", body: String(e?.message ?? e).slice(0, 160) };
       } finally { this.loading = false; cx.notify(); }
@@ -167,6 +240,7 @@ export default class Servers extends View {
   share(s, cx) {
     if (this.pending.has(s.port) || this.shares().has(s.port)) return;
     this.pending.add(s.port);
+    this.publish(true);
     cx.notify();
     cx.spawn(async (cx) => {
       try {
@@ -187,8 +261,8 @@ export default class Servers extends View {
   unshare(port, cx) {
     const address = this.shares().get(port);
     this.pending.delete(port); this.fresh.delete(port);
-    if (!address) return;
-    cx.spawn(async (cx) => { await hc(["kill", address]); cx.notify(); });
+    if (!address) return this.publish(true);
+    cx.spawn(async (cx) => { await hc(["kill", address]); this.publish(true); cx.notify(); });
   }
 
   // Ends the server's process and the ones it started.
@@ -200,6 +274,7 @@ export default class Servers extends View {
   stop(s, cx) {
     if (this.stopping.has(s.pid)) return;
     this.stopping.add(s.pid);
+    this.publish(true);
     cx.notify();
     this.unshare(s.port, cx);
     cx.spawn(async (cx) => {
@@ -218,6 +293,7 @@ export default class Servers extends View {
     if (this.stopping.has(s.pid)) return;
     this.stopping.add(s.pid);
     this.restarting.add(s.port); // its tunnel, if any, stays for the new one
+    this.publish(true);
     cx.notify();
     cx.spawn(async (cx) => {
       try {

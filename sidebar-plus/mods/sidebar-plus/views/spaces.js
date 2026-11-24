@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. Right-clicks open the space-menu mod. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. Right-clicks open the space-menu mod; a `below` hook for rows after the spaces. See NOTICE.
 // The spaces list: right-aligned branches, nested worktrees and a PR status line.
 // Repository facts follow each space's first terminal.
 import { div } from "gpui-kit";
@@ -1186,7 +1186,8 @@ export class Spaces {
   }
 
   body(t, collapsed) {
-    const rows = [...(this.above?.() ?? []), ...this.grouped(t, collapsed)];
+    // sidebar-plus: `below`, set by the lists view, adds rows after every space (other servers).
+    const rows = [...(this.above?.() ?? []), ...this.grouped(t, collapsed), ...(this.below?.() ?? [])];
     this.revealShown(rows);
     return v_flex()
       .id("spaces-list")

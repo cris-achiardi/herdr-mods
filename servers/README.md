@@ -6,12 +6,13 @@ A sidebar section for the [Herdr](https://herdr.dev) desktop app that lists the 
 
 ## What it adds
 
-- **The running servers**: every process listening on a TCP port that was started from a Herdr terminal, or that is a dev runtime (node, bun, deno, python, ruby, php, java, dotnet and a few more). Each shows its project folder's name and its port.
+- **The running servers**: every process listening on a TCP port that was started from a Herdr terminal, or that is a dev runtime (node, bun, deno, python, ruby, php, java, dotnet and a few more). Each shows its project folder's name and its port. Agents are left out: an agent program such as Codex listens on a local port of its own, but it is an agent, not a server.
 - **Grouped by space**: a server sits under the space whose terminal started it, or whose terminals are in its folder. The rest go under "Other". Click a space's row to fold its servers away.
 - **Restart**: stops the server and runs its command again in its folder, for when hot reload gives up. The new one runs in the background as a herdr-core terminal without a pane (`hc ls` shows it).
 - **Stop**: ends the server's process and the processes it started.
 - **Share**: gives the server a temporary public address (`https://<random words>.trycloudflare.com`) through a Cloudflare quick tunnel and copies it. The address shows under the server; click it to copy it again, or its ✕ to stop sharing. **Anyone who has the link can see the server until you stop sharing**; there is no password.
 - **Open in browser**: opens `http://localhost:<port>`.
+- **Shared with the sidebar**: each scan is also published so [Sidebar Plus](../sidebar-plus/) can list servers under their spaces, with the same buttons; it asks this mod to restart, stop or share. While Sidebar Plus listens the scans keep running even with this section hidden, so you can switch the section off (Ctrl+Shift+M with [Mod Switches](../mod-switches/)).
 - Click a server to go to its space.
 - **Its own height**: the section is as tall as its list. Drag its top edge (the pointer turns into a resize cursor there) and it keeps the height you gave it, also after a restart; double-click the edge or the "Servers" heading and it fits itself again.
 

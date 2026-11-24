@@ -43,5 +43,8 @@ Modifications copyright 2026 cris-achiardi, under the same license: renamed
 to sidebar-plus throughout; right-clicks open the space-menu mod; pull-request
 heads matched through headRepositoryOwner when gh leaves nameWithOwner empty;
 Figma files (from the figma-bridge mod) drawn under agents; test loaders
-accept CRLF. icons/figma.svg is from Lucide (ISC, icons/LICENSE-lucide.txt).
+accept CRLF; local servers (from the servers mod) under their spaces, in the new
+file views/servers.js and the lists view. icons/figma.svg, restart.svg,
+stop.svg, share.svg, link.svg, x.svg and external.svg are from Lucide (ISC,
+icons/LICENSE-lucide.txt).
 Modified files say so at the top. See README.md, "Changes from Better Sidebar".

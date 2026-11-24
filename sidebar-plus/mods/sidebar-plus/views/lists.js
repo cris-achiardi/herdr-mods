@@ -1,12 +1,14 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; servers under their spaces. See NOTICE.
 // Spaces and agents in one block. Combined (the default): tabs for Spaces, with
 // each space's tabs and agents under it, and Agents. With `combined: false` in the settings: the
 // two lists one above the other, as two blocks of this mod would draw them.
+import { div } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { focused, theme, setAgentOrder } from "herdr";
 import { Spaces } from "./spaces.js";
 import { Agents } from "./agents.js";
 import { TEXT, Badge, Rail } from "./ui.js";
+import { ServerRows, serversOf, otherServers, listenForServers, SERVERS_LISTEN_EVERY } from "./servers.js";
 
 const TABS = ["spaces", "agents"];
 
@@ -18,6 +20,13 @@ export class Lists {
     this.agents.init(props, cx);
     const saved = localStorage.getItem("lists.tab");
     this.tab = TABS.includes(saved) ? saved : "spaces";
+    // sidebar-plus: servers from the servers mod, under their spaces in the Spaces tab.
+    this.servers = new ServerRows();
+    listenForServers();
+    cx.timer.every(SERVERS_LISTEN_EVERY, (cx) => {
+      listenForServers();
+      cx.notify();
+    });
   }
 
   pick(tab, cx) {
@@ -37,6 +46,7 @@ export class Lists {
       .text_size(TEXT.body)
       .on_size_change((size, cx) => this.spaces.resized(size, cx));
     this.spaces.under = null;
+    this.spaces.below = null;
     this.spaces.quiet = null;
     this.spaces.above = null;
     // The rail has no room for tabs: both lists, as numbers.
@@ -73,22 +83,38 @@ export class Lists {
     // Every tab shows: a tab with agents as its agents, any other as itself.
     const shownTab = focused()?.tab;
     const plain = (tab) => !all.some((a) => a.tab === tab.id);
+    const now = Date.now();
     this.spaces.under = ({ w, tree, kids }) => {
-      const items = w.tabs.flatMap((tab) =>
-        plain(tab)
-          ? tab.settled ? [] : [{ tab }]
-          : all.filter((a) => a.tab === tab.id && !pins.includes(a.address)).map((a) => ({ a })),
-      );
+      const items = [
+        ...w.tabs.flatMap((tab) =>
+          plain(tab)
+            ? tab.settled ? [] : [{ tab }]
+            : all.filter((a) => a.tab === tab.id && !pins.includes(a.address)).map((a) => ({ a })),
+        ),
+        // sidebar-plus: the space's servers, after its tabs and agents.
+        ...serversOf(w.id, now).map((srv) => ({ srv })),
+      ];
       order.push(...items.filter((x) => x.a).map((x) => x.a.address));
       const before = tree ? [tree.startsWith("└") ? "" : "│"] : [];
       return items.flatMap((x, i) => {
         const last = i === items.length - 1 && !kids;
         const [row, ...subs] = x.a
           ? this.agents.agentWithSubs(x.a, i, nested, t)
-          : [this.agents.tabRow(w, x.tab, x.tab.id === shownTab, t)];
+          : x.srv
+            ? [this.servers.row(x.srv, t)]
+            : [this.agents.tabRow(w, x.tab, x.tab.id === shownTab, t)];
         return [nest([...before, last ? "└" : "├"], row), ...subs.map((s) => nest([...before, last ? "" : "│"], s))];
       });
     };
+    // sidebar-plus: servers no space claims, last, under their own heading.
+    const others = otherServers(now);
+    this.spaces.below = () =>
+      others.length
+        ? [
+            div().px(8).pt(12).pb(4).text_size(TEXT.caption).text_color(t.dim).child("Other servers"),
+            ...others.map((srv) => this.servers.row(srv, t)),
+          ]
+        : [];
     // One row lit: a space whose focused agent or tab shows beneath it leaves it to that row.
     this.spaces.quiet = (w) =>
       all.some((a) => a.space === w.id && a.focused) || w.tabs.some((tab) => tab.id === shownTab && plain(tab));
