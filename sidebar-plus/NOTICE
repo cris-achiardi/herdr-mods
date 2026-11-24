@@ -44,7 +44,9 @@ to sidebar-plus throughout; right-clicks open the space-menu mod; pull-request
 heads matched through headRepositoryOwner when gh leaves nameWithOwner empty;
 Figma files (from the figma-bridge mod) drawn under agents; test loaders
 accept CRLF; local servers (from the servers mod) under their spaces, in the new
-file views/servers.js and the lists view. icons/figma.svg, restart.svg,
+file views/servers.js and the lists view; spaces fold in the lists view and an
+agent folds its Figma files too; an agent's right-click menu (Stop, Rename) in
+the new file views/agent-menu.js. icons/figma.svg, restart.svg, square-pen.svg,
 stop.svg, share.svg, link.svg, x.svg and external.svg are from Lucide (ISC,
 icons/LICENSE-lucide.txt).
 Modified files say so at the top. See README.md, "Changes from Better Sidebar".

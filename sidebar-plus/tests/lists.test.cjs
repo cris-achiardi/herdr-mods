@@ -1,4 +1,4 @@
-// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; loader accepts CRLF; server row tests. See NOTICE.
+// Modified by cris-achiardi, 2026: from Better Sidebar 3.10.0 (Tawsif Aqib, Apache-2.0); renamed to sidebar-plus; loader accepts CRLF; server row and space fold tests. See NOTICE.
 // The lists view: spaces and agents in one block, under tabs or one above the other.
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -249,4 +249,24 @@ test("sidebar-plus: a shared server offers copy and stop sharing instead of shar
   assert.equal(find(root, "srv-share-10-5173"), undefined);
   assert.equal(find(root, "srv-restart-10-5173"), undefined, "no restart without a folder and command");
   assert.ok(find(root, "srv-copy-10-5173") && find(root, "srv-unshare-10-5173"));
+});
+
+test("sidebar-plus: a space folds its tabs, agents and servers, counts them, and keeps the choice", async () => {
+  const sharedValues = { "servers.spaces": { at: Date.now(), spaces: { shop: [server(10, 5173)] }, other: [] } };
+  const { mod, stored, cx, live } = await harness({ sharedValues });
+  let root = mod.render();
+  assert.ok(find(root, "space-fold-shop"), "a space with rows has a fold chevron");
+  const title = find(root, "space-shop");
+  const order = ids(title).map(String);
+  assert.ok(order.indexOf("space-fold-shop") >= 0, "the chevron is in the space's row");
+  find(root, "space-fold-shop").handlers.click({}, cx);
+  assert.deepEqual(JSON.parse(stored["lists.folded-spaces"]), ["shop"]);
+  root = mod.render();
+  const drawn = ids(root).filter((id) => /^(space-(shop|docs)|ag-t\d|tab-\w|srv-.*)$/.test(String(id)));
+  assert.deepEqual(drawn, ["space-shop", "space-docs", "ag-t2"], "shop's rows are gone, docs' stay");
+  assert.match(text(find(root, "space-count-shop")), /4/, "two agents, a tab and a server, counted at the row's end");
+  assert.equal(find(root, "space-count-docs"), undefined, "an open space shows no count");
+  assert.deepEqual(live.order, ["t1", "t3", "t2"], "next-agent keys still reach a folded space's agents");
+  find(root, "space-fold-shop").handlers.click({}, cx);
+  assert.ok(ids(mod.render()).includes("ag-t1"), "unfolded again");
 });
