@@ -7,10 +7,10 @@ A file-import button in the tab bar: click it, choose one or more files in the s
 ## What it does
 
 - **The button** sits in the tab bar immediately after the **Workspace** link (if installed) and before the **+** new-tab button. It shows a 14px document-with-plus icon in `dim`, hovering to `foreground` with a `hover` background.
-- Clicking it opens a small dialog and immediately shows the OS file picker. The dialog stays on screen while you choose.
-- Select one or more files — any type: video, PDF, text, image, anything the OS picker shows — and confirm. The dialog closes and their absolute paths are pasted into the focused terminal at its current prompt, each quoted and separated by a space.
-- If you press **Esc** or **Cancel**, or close the picker without choosing, the dialog closes and nothing is sent.
-- If no terminal is focused when you confirm, the paths are silently dropped.
+- Clicking it opens the OS file picker immediately — no dialog appears while you choose.
+- Select one or more files — any type: video, PDF, text, image, anything the OS picker shows — and confirm. Their absolute paths are copied to the clipboard, quoted and space-separated, and a toast confirms "File path copied".
+- Press **Ctrl+V** in your terminal to paste the paths whenever you're ready. Nothing is sent automatically, so you can write your message first and submit on your own terms.
+- If you close the picker without choosing, the clipboard is untouched and nothing happens.
 
 ## Install
 
@@ -26,11 +26,12 @@ It follows [RECIPE.md](RECIPE.md). Installation has two parts:
 ## What it runs
 
 - `pickFiles` with `{ multiple: true }` for the system file picker.
-- `hc ["send", terminal, paths]` to paste the result.
-- No network, no shell commands, no writes to disk.
+- `exec powershell Set-Clipboard` to copy the paths to the clipboard.
+- `notify` to show the confirmation toast.
+- No network, no writes to disk, nothing sent to any terminal.
 
 ## Limits
 
-- Requires a focused terminal pane when files are confirmed. If the focus moves between clicking and confirming, the paths are silently dropped.
+- Requires PowerShell (`powershell`) on PATH for the clipboard write. On macOS/Linux the clipboard step will silently fail (use the macOS/Linux clipboard variant instead).
 - Paths are quoted with double quotes. File names containing `"` will break the quoting — rename them first.
 - Built and used on Windows with Herdr 0.1.15. Untested on macOS and Linux.
