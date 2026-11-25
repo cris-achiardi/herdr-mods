@@ -11,6 +11,7 @@ Mods for the [Herdr](https://herdr.dev) desktop app. Each mod lives in its own f
 | [Servers](servers/) | A sidebar section listing the local servers running on your computer under their space, each with a stop button and an open-in-browser button. |
 | [Scripts](scripts/) | A side panel listing the project's `package.json` scripts; a click runs one in a new terminal pane. |
 | [Workspaces](workspaces/) | A "Workspace" link in the tab bar that opens a menu of your layouts; each layout is its own set of mods, so picking one switches them. Includes a clean copy of Herdr's default with the link, listed in place of the original. |
+| [File Import](file-import/) | A file-import button in the tab bar: click it, choose any files in the system picker, and their paths are pasted into the focused terminal at the prompt, quoted and space-separated. |
 | [Mod Switches](mod-switches/) | Ctrl+Shift+M opens a dialog with an on/off switch for every mod on screen (sidebar sections, panels, bars); off hides it without uninstalling, per layout. |
 | [Herdr orchestration](herdr-orchestration/) | Not a mod: a Claude Code skill, role templates and scripts for running Claude workers and a Codex reviewer in split panes, with a tested list of hc/Codex/Windows frictions. |
 
