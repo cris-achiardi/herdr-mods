@@ -8,9 +8,9 @@ A file-import button in the tab bar: click it, choose one or more files in the s
 
 - **The button** sits in the tab bar immediately after the **Workspace** link (if installed) and before the **+** new-tab button. It shows a 14px document-with-plus icon in `dim`, hovering to `foreground` with a `hover` background.
 - Clicking it opens the OS file picker immediately — no dialog appears while you choose.
-- Select one or more files — any type: video, PDF, text, image, anything the OS picker shows — and confirm. Their absolute paths are copied to the clipboard, quoted and space-separated, and a toast confirms "File path copied".
-- Press **Ctrl+V** in your terminal to paste the paths whenever you're ready. Nothing is sent automatically, so you can write your message first and submit on your own terms.
-- If you close the picker without choosing, the clipboard is untouched and nothing happens.
+- Select one or more files — any type: video, PDF, text, image, anything the OS picker shows — and confirm. The quoted path lands in your focused terminal exactly as if you had dragged the file there: no Enter is pressed, no message is sent, no agent is triggered.
+- You can now type your message around the path and submit on your own terms.
+- If you close the picker without choosing, nothing happens.
 
 ## Install
 
@@ -26,12 +26,13 @@ It follows [RECIPE.md](RECIPE.md). Installation has two parts:
 ## What it runs
 
 - `pickFiles` with `{ multiple: true }` for the system file picker.
-- `exec powershell Set-Clipboard` to copy the paths to the clipboard.
-- `notify` to show the confirmation toast.
-- No network, no writes to disk, nothing sent to any terminal.
+- `exec powershell` to put the selected files in the Windows clipboard as a file drop list (same format Explorer uses for Copy), via `System.Windows.Forms.Clipboard.SetFileDropList`.
+- `pane.focus` on the terminal that was focused when you clicked import, so the paste lands there.
+- `terminal.paste` to insert the clipboard files into the terminal "as if dropped" — quoted path, no Enter.
+- No network, no writes to disk, no hc send, no automatic submission.
 
 ## Limits
 
-- Requires PowerShell (`powershell`) on PATH for the clipboard write. On macOS/Linux the clipboard step will silently fail (use the macOS/Linux clipboard variant instead).
-- Paths are quoted with double quotes. File names containing `"` will break the quoting — rename them first.
+- Requires PowerShell (`powershell`) on PATH for the file-drop-list clipboard write. On macOS/Linux this exact approach won't work — you'd need `pbcopy`/`xclip` plus a different paste command.
+- Needs a focused terminal pane when the picker closes. If no terminal is focused, nothing happens.
 - Built and used on Windows with Herdr 0.1.15. Untested on macOS and Linux.

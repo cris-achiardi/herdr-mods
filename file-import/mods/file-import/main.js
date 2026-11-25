@@ -1,10 +1,11 @@
-// File import: opens the system file picker, copies the selected paths to the
-// clipboard (quoted and space-separated), and shows a toast.
-// No dialog is shown while the picker is open — the overlay is invisible.
-// Paste with Ctrl+V into your terminal when ready; nothing is sent automatically.
+// File import: opens the system file picker, puts the picked files in the Windows
+// clipboard as a file drop list (the same format Explorer's Copy uses), then lets
+// Herdr's terminal.paste insert them into the focused terminal "as if dropped" —
+// the quoted path appears in the input, no Enter is pressed, nothing is submitted.
+// No dialog is shown while the picker is open; the overlay is a 0×0 invisible div.
 
 import { View, div } from "gpui-kit";
-import { pickFiles, props, closeOverlay, notify, exec, checking } from "herdr";
+import { pickFiles, panes, props, closeOverlay, run, exec, checking } from "herdr";
 
 export default class FileImport extends View {
   init(_props, cx) {
@@ -15,9 +16,14 @@ export default class FileImport extends View {
       try {
         const files = await pickFiles({ prompt: "Import files", multiple: true });
         if (files?.length) {
-          const text = files.map(f => `"${f}"`).join(" ");
-          await exec("powershell", ["-NoProfile", "-NonInteractive", "-Command", `Set-Clipboard -Value ${JSON.stringify(text)}`]);
-          notify({ title: "File path copied", body: "Ctrl+V to paste into your terminal.", timeout: 3000 });
+          const terminal = panes().find(p => p.focused && p.terminal)?.terminal;
+          if (terminal) {
+            const adds = files.map(f => `[void]$col.Add(${JSON.stringify(f)})`).join("; ");
+            const psScript = `Add-Type -AssemblyName System.Windows.Forms; $col = New-Object System.Collections.Specialized.StringCollection; ${adds}; [System.Windows.Forms.Clipboard]::SetFileDropList($col)`;
+            await exec("powershell", ["-NoProfile", "-NonInteractive", "-STA", "-Command", psScript]);
+            await run("pane.focus", { terminal });
+            await run("terminal.paste");
+          }
         }
       } catch {}
       closeOverlay(props()?.overlay);
