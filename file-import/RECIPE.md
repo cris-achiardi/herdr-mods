@@ -34,9 +34,12 @@ A file-import button in the tab bar: opens the system file picker; pastes the se
 In a tab bar mod based on Herdr's `tabs` (0.1.15), insert after the Workspace link (or directly before `tab-new` if Workspace is not installed):
 
 ```js
-// File import: opens the system picker; paths land in the focused terminal.
+// File import: opens the system picker; the picked file's path lands in the
+// focused terminal via terminal.paste, without Enter. frame: "none" drops
+// Herdr's dialog border/background so nothing at all shows while the picker
+// is open; the 1×1 size is just a minimum for a valid overlay frame.
 .child(button("tab-import", svg("mods/file-import/import.svg").size(14),
-  () => openOverlay({ mod: "file-import", kind: "dialog", width: 340, height: 148 })))
+  () => openOverlay({ mod: "file-import", kind: "dialog", width: 1, height: 1, frame: "none" })))
 ```
 
 (`button` is the tab bar's existing helper: `(id, label, action) => div().id(id).size(26)…on_click(action).child(label)`.)
