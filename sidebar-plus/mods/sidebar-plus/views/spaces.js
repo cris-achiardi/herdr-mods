@@ -383,7 +383,7 @@ export class Spaces {
       kind: "popup",
       at: "pointer",
       width: 230,
-      height: 320,
+      height: 560,
       props: w ? { space: w.id } : {},
     });
   }

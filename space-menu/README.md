@@ -10,6 +10,9 @@ A right-click menu for the Spaces list in the [Herdr](https://herdr.dev) desktop
 - **Open folder…**: the system folder picker, then a new space in the chosen folder. The space is named after the folder (or its repository), as Herdr names any unnamed space.
 - **Open folders…**: a dialog that collects several folders, then makes **one space with a tab per folder**, each tab named after its folder. Optionally the first tab starts Claude Code with the other folders passed as `--add-dir`.
 - On a space's row, the menu also carries Herdr's own space items (Rename, New/Open/Remove worktree, Close), so it replaces the shipped space menu without losing anything.
+- **Other machines.** For each machine added with `hc machine add`, a section headed with its name: **New space**, **Open folder…** and **Open folders…** on that machine. The system picker only shows this computer's folders, so these open a folder browser that lists the machine's folders over the connection, with its git repositories (and the folders its spaces use) under **Projects** at the top. Type part of a name to filter, or a path and Enter to go there. While a machine is offline its section is greyed out.
+
+The top **New space** follows the focused space's machine, as Herdr's **+** does. The top **Open folder…** and **Open folders…** always make the space on this computer, since that's whose folders the picker shows.
 
 ## Install
 
@@ -37,6 +40,7 @@ Opened this way it shows New space, Open folder… and Open folders…, without 
 ## What it runs
 
 - The system folder picker (`pickFolder`), on this computer only.
+- On another machine, through Herdr (`exec` with `on`), only while one of its dialogs is open: `uname` and `pwd` to learn its system and home folder (on Windows, PowerShell's `$HOME`), `find` or PowerShell `Get-ChildItem` to list a folder's folders, and the same to find git repositories up to four folders below home (skipping hidden folders, links, `node_modules`, `~/Library` and `AppData`). It changes nothing there.
 - `git rev-parse` in a right-clicked space's folder, to decide whether to offer the worktree items.
 - Herdr's installed-agent check (`knownAgents`), to decide whether to offer the Claude Code option.
 - App commands: `space.new`, `space.rename`, `space.close`, `tab.new`, `tab.rename`, `tab.select`.
@@ -47,9 +51,9 @@ No network access. It reads no files and writes nothing outside Herdr's own stat
 
 - **A multi-folder space is not a sandbox.** A Herdr space is a starting point, not a fence: any terminal in it can `cd` anywhere. `--add-dir` sets which folders Claude Code works in; it does not restrict the shell.
 - The folder picker returns one folder at a time, so Open folders… adds them one by one.
-- Folders are picked on this computer. Spaces on other machines are not supported.
+- Another machine's folders are browsed in Herdr's own dialog, not a system picker: no favorites, no search beyond the folder you're in and the Projects list.
 - The Claude Code option appears only when Herdr reports Claude Code as installed. Other agents are not offered.
-- Built and used on Windows with Herdr 0.1.15. macOS and Linux are untested.
+- Built on Windows with Herdr 0.1.15; the other-machines part on macOS with hc 0.1.22, browsing a Windows PC and a macOS machine. Linux is untested.
 
 ## License
 
