@@ -22,8 +22,9 @@ When opened for a space (`props.space`), after a 1px `border` divider (7px side 
 
 - Agent statuses (working, blocked, done, idle) are not shown: this is a menu. Nothing animates.
 - Up/down move the highlight, Enter runs the row, Esc closes. A click runs the row. The popup closes first, then the row acts.
-- **New space** runs `space.new` with no arguments.
-- **Open folder…** opens the Open folder dialog, which immediately opens the system folder picker. A chosen folder runs `space.new {folder}` with no name, so Herdr names the space after the folder or its repository. Cancelling the picker, Esc or Cancel makes nothing. The dialog closes when the picker returns.
+- Every space this mod makes is on this computer: each `space.new` carries `machine: ""`. Without it Herdr would use the focused space's machine, which fails while that machine is unreachable, and the folder picker only shows this computer's folders.
+- **New space** runs `space.new {machine: ""}`.
+- **Open folder…** opens the Open folder dialog, which immediately opens the system folder picker. A chosen folder runs `space.new {machine: "", folder}` with no name, so Herdr names the space after the folder or its repository. Cancelling the picker, Esc or Cancel makes nothing. The dialog closes when the picker returns.
 - **Open folders…** opens the Open folders dialog, which immediately opens the picker for the first folder. Each "Add folder…" opens it again. A folder already in the list (compared without trailing slashes, ignoring case) is not added twice. × removes a folder.
 - **Create space** runs `space.new` in the first folder, named with the typed name, else the folder names joined with ` + ` when there are several, else unnamed. It then waits for the new space to appear (checking every 100 ms, up to 5 s), names its first tab after the first folder, runs `tab.new {space, folder, name}` for each other folder with the folder's name as the tab's name, selects the first tab again, and closes. If the space never appears, an error toast says the other folders weren't added.
 - With the checkbox on, the first tab's `space.new` carries `argv`: Claude Code's launch command from `knownAgents()` followed by `--add-dir <folder>` for every folder after the first. The other tabs are plain terminals.
