@@ -17,11 +17,6 @@ import { run, props, closeOverlay, openOverlay, theme, keys, spaces, panes, exec
 
 const ICON = (name) => `mods/workspace-chrome/${name}.svg`;
 
-// New spaces always go on this computer: without `machine`, Herdr would use the
-// focused space's machine, which fails while that machine is off, and the
-// folder picker only shows this computer's folders anyway.
-const HERE = { machine: "" };
-
 // Where a space is now: its first terminal's live folder, else where it was made.
 function place(s) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
@@ -41,7 +36,7 @@ function items(space, git) {
   const worktree = (action) => () =>
     openOverlay({ mod: "worktree", kind: "dialog", ...(action === "open" ? { width: 560, height: 480 } : { width: 440, height: 260 }), props: { space, action } });
   return [
-    { label: "New space", icon: "plus", key: "space.new", act: () => run("space.new", HERE) },
+    { label: "New space", icon: "plus", key: "space.new", act: () => run("space.new", {}) },
     { label: "Open folder…", icon: "folder-plus", act: () => openOverlay({ mod: "space-menu", kind: "dialog", width: 340, height: 132, props: { role: "pick" } }) },
     { label: "Open folders…", icon: "layers", act: () => openOverlay({ mod: "space-menu", kind: "dialog", width: 460, height: 440, props: { role: "multi" } }) },
     ...(space
@@ -134,7 +129,7 @@ class Pick {
     cx.spawn(async () => {
       try {
         const folder = await pickFolder({ prompt: "Open folder as a space" });
-        if (folder) run("space.new", { ...HERE, folder });
+        if (folder) run("space.new", { folder });
       } catch (e) {
         notify({ title: "Couldn't open the folder", body: String(e?.message ?? e), level: "error" });
       }
@@ -244,7 +239,6 @@ class Multi {
     const name = this.name.value().trim() || (folders.length > 1 ? folders.map(baseName).join(" + ") : "");
     const withAgent = this.agent && this.claude;
     run("space.new", {
-      ...HERE,
       folder: first,
       ...(name ? { name } : {}),
       ...(withAgent ? { argv: [...this.claude, ...rest.flatMap((f) => ["--add-dir", f])] } : {}),
